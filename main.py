@@ -3,6 +3,22 @@ import discord
 from discord.ext import commands
 import pymongo
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from flask import Flask
+from threading import Thread
+
+# === FLASK KEEP ALIVE ===
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "El bot está vivo 🟢"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
 
 # === CONFIG ===
 TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"  # Reemplaza con tu token de Discord
@@ -94,4 +110,5 @@ async def main():
     async with bot:
         await bot.start(TOKEN)
 
+keep_alive()
 asyncio.run(main())

@@ -1,44 +1,51 @@
 import pymongo
+from pymongo.errors import ConnectionError
 
-# Usar la URI directamente aquí
-db_uri = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"  # Directamente aquí
+# URI de conexión directa
+db_uri = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
 
 def db_connect():
+    """Establece la conexión con la base de datos MongoDB."""
     try:
-        connection = pymongo.MongoClient(db_uri)
-        # Intentar hacer una consulta simple para verificar la conexión
-        connection.admin.command('ping')
-        print("✅ Conexión a MongoDB exitosa!")
-        return connection
-    except pymongo.errors.ConnectionError as e:
-        print(f"❌ Error de conexión: {e}")
+        # Intentar la conexión
+        client = pymongo.MongoClient(db_uri)
+        print("✅ Conexión exitosa a MongoDB Atlas.")
+        return client
+    except ConnectionError as e:
+        print(f"❌ Error de conexión a MongoDB: {e}")
+        return None
     except Exception as e:
         print(f"❌ Error desconocido: {e}")
-    return None
+        return None
 
-def register(conn, ctx):
-    print(f"✅ Registro iniciado para {ctx.author.id} ({ctx.author.name})")
-    database = conn["discord_server"]
-    collection = database["users"]
-    
-    # Crear un documento con el discordID y el userName
-    doc = {"discordID": str(ctx.author.id), "userName": str(ctx.author.name)}
-    
-    # Insertar el documento en la colección
-    collection.insert_one(doc)
-    print(f"✅ {ctx.author.name} registrado correctamente.")
+def register_user(conn, discord_id, discord_name):
+    """Registra un usuario en la base de datos."""
+    try:
+        db = conn["discord_server"]
+        col = db["users"]
+        doc = {"discordID": str(discord_id), "userName": str(discord_name)}
+        
+        # Insertar el documento
+        result = col.insert_one(doc)
+        print(f"✅ Usuario {discord_name} registrado con ID: {result.inserted_id}")
+    except Exception as e:
+        print(f"❌ ERROR al insertar usuario en MongoDB: {e}")
 
 def verify_id(conn, discord_id):
-    print(f"✅ Verificando si el ID {discord_id} existe en la base de datos.")
-    database = conn["discord_server"]
-    collection = database["users"]
-    
-    # Buscar un documento con el discordID
-    doc = collection.find_one({"discordID": discord_id})
-    if doc:
-        print(f"✅ ID {discord_id} encontrado.")
-        return True
-    else:
-        print(f"❌ ID {discord_id} no encontrado.")
+    """Verifica si el usuario ya está registrado en la base de datos."""
+    try:
+        db = conn["discord_server"]
+        col = db["users"]
+        
+        # Buscar el usuario por su discordID
+        user = col.find_one({"discordID": str(discord_id)})
+        
+        if user:
+            print(f"✅ El usuario con ID {discord_id} ya existe.")
+            return True
+        else:
+            print(f"❌ El usuario con ID {discord_id} no existe.")
+            return False
+    except Exception as e:
+        print(f"❌ Error al verificar el ID: {e}")
         return False
-
