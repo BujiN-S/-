@@ -5,7 +5,6 @@ import discord
 from discord.ext import commands
 from pymongo import MongoClient
 from flask import Flask
-from threading import Thread
 
 # === FLASK KEEP-ALIVE SERVER ===
 app = Flask(__name__)
@@ -13,10 +12,6 @@ app = Flask(__name__)
 @app.route('/')
 def home():
     return "Bot activo ✅"
-
-def run():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
 
 # 🔁 Iniciar bot automáticamente cuando Flask inicia con Gunicorn
 @app.before_first_request
@@ -61,7 +56,6 @@ async def main():
     async with bot:
         await bot.start(TOKEN)
 
-# === Solo para entorno local ===
+# === Solo para pruebas locales ===
 if __name__ == "__main__":
-    keep_alive()
     asyncio.run(main())
