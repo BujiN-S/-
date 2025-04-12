@@ -1,5 +1,6 @@
 import asyncio
 import os
+import threading
 import discord
 from discord.ext import commands
 from pymongo import MongoClient
@@ -17,13 +18,16 @@ def run():
     port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port)
 
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
+# 🔁 Iniciar bot automáticamente cuando Flask inicia con Gunicorn
+@app.before_first_request
+def start_bot():
+    def run_bot():
+        asyncio.run(main())
+    threading.Thread(target=run_bot).start()
 
 # === CONFIGURACIÓN DEL BOT ===
-TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"  # reemplaza con tu token real
-APP_ID = 1352495612813250640  # reemplaza con tu App ID real
+TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"
+APP_ID = 1352495612813250640
 
 # === CONEXIÓN A MONGODB ===
 MONGO_URI = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
@@ -57,8 +61,7 @@ async def main():
     async with bot:
         await bot.start(TOKEN)
 
-# === INICIAR SOLO SI ES LOCAL ===
+# === Solo para entorno local ===
 if __name__ == "__main__":
     keep_alive()
     asyncio.run(main())
-
