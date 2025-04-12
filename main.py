@@ -1,114 +1,64 @@
 import asyncio
+import os
 import discord
 from discord.ext import commands
-import pymongo
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo import MongoClient
 from flask import Flask
 from threading import Thread
 
-# === FLASK KEEP ALIVE ===
-app = Flask('')
+# === FLASK KEEP-ALIVE SERVER ===
+app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "El bot está vivo 🟢"
+    return "Bot activo ✅"
 
 def run():
-    app.run(host='0.0.0.0', port=8080)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# === CONFIG ===
-TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"  # Reemplaza con tu token de Discord
-APP_ID = 1352495612813250640  # Reemplaza con tu ID de aplicación de Discord
+# === CONFIGURACIÓN DEL BOT ===
+TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"  # reemplaza con tu token real
+APP_ID = 1352495612813250640  # reemplaza con tu App ID real
 
-# === MONGO ===
-db_uri = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
+# === CONEXIÓN A MONGODB ===
+MONGO_URI = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
+client = MongoClient(MONGO_URI)
+db = client["discord_server"]
+col = db["users"]
 
-def db_connect():
-    """Establece la conexión con la base de datos MongoDB."""
-    try:
-        # Intentar la conexión
-        client = pymongo.MongoClient(db_uri)
-        print("✅ Conexión exitosa a MongoDB Atlas.")
-        return client
-    except ConnectionError as e:
-        print(f"❌ Error de conexión a MongoDB: {e}")
-        return None
-    except Exception as e:
-        print(f"❌ Error desconocido: {e}")
-        return None
-
-def register_user(conn, discord_id, discord_name):
-    """Registra un usuario en la base de datos."""
-    try:
-        db = conn["discord_server"]
-        col = db["users"]
-        doc = {"discordID": str(discord_id), "userName": str(discord_name)}
-        
-        # Insertar el documento
-        result = col.insert_one(doc)
-        print(f"✅ Usuario {discord_name} registrado con ID: {result.inserted_id}")
-    except Exception as e:
-        print(f"❌ ERROR al insertar usuario en MongoDB: {e}")
-
-def verify_id(conn, discord_id):
-    """Verifica si el usuario ya está registrado en la base de datos."""
-    try:
-        db = conn["discord_server"]
-        col = db["users"]
-        
-        # Buscar el usuario por su discordID
-        user = col.find_one({"discordID": str(discord_id)})
-        
-        if user:
-            print(f"✅ El usuario con ID {discord_id} ya existe.")
-            return True
-        else:
-            print(f"❌ El usuario con ID {discord_id} no existe.")
-            return False
-    except Exception as e:
-        print(f"❌ Error al verificar el ID: {e}")
-        return False
-
-
-# === CONEXIÓN A LA BASE DE DATOS ===
-conn = db_connect()
-if not conn:
-    exit()  # Si no se puede conectar, se termina la ejecución
-
-# === DISCORD BOT ===
+# === DISCORD SETUP ===
 intents = discord.Intents.all()
 intents.message_content = True
-
 bot = commands.Bot(command_prefix="!", intents=intents, application_id=APP_ID)
 
-# === COMANDO START ===
 @bot.tree.command(name="start", description="Start your adventure!")
 async def start(interaction: discord.Interaction):
-    print(f"🟡 /start ejecutado por {interaction.user.name} ({interaction.user.id})")
     user_id = str(interaction.user.id)
-    
-    if verify_id(conn, user_id):
-        print("🟢 Usuario ya registrado.")
-        await interaction.response.send_message("Ya estás registrado.", ephemeral=True)
+    user_name = interaction.user.name
+
+    if col.find_one({"discordID": user_id}):
+        await interaction.response.send_message("Ya estás registrado. ✅", ephemeral=True)
     else:
-        print("🔵 Usuario nuevo. Registrando...")
-        register_user(conn, user_id, interaction.user.name)
+        col.insert_one({"discordID": user_id, "userName": user_name})
         await interaction.response.send_message("¡Bienvenido al juego! 🎮", ephemeral=True)
 
-# === READY EVENT ===
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
     await bot.tree.sync()
 
-# === EJECUTAR BOT ===
+# === EJECUCIÓN DEL BOT ===
 async def main():
     async with bot:
         await bot.start(TOKEN)
 
-keep_alive()
-asyncio.run(main())
+# === INICIAR SOLO SI ES LOCAL ===
+if __name__ == "__main__":
+    keep_alive()
+    asyncio.run(main())
+
