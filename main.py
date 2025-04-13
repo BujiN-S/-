@@ -7,18 +7,11 @@ from pymongo import MongoClient
 from flask import Flask
 
 # === FLASK KEEP-ALIVE SERVER ===
-app = Flask(__name__)  # CORREGIDO: usar __name__
+app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot activo ✅"
-
-# 🔁 Iniciar bot automáticamente cuando Flask inicia con Gunicorn
-@app.before_first_request
-def start_bot():
-    def run_bot():
-        asyncio.run(main())
-    threading.Thread(target=run_bot).start()
 
 # === CONFIGURACIÓN DEL BOT ===
 TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"
@@ -56,6 +49,24 @@ async def main():
     async with bot:
         await bot.start(TOKEN)
 
-# === Solo para entorno local ===
+# === Lanzar Flask y Bot (en hilo separado) ===
+def run_all():
+    def run_bot():
+        asyncio.run(main())
+
+    # Arrancar el bot en un hilo nuevo
+    threading.Thread(target=run_bot).start()
+
+    # Correr Flask
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
+
+# Solo se ejecuta en entorno local
 if __name__ == "__main__":
-    asyncio.run(main())
+    run_all()
+
+# Exportar app para gunicorn (Render lo necesita)
+# Esto hace que Flask arranque y con él el bot.
+run_all()
+
+    
