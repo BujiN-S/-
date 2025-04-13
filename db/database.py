@@ -1,63 +1,35 @@
 import pymongo
 
 # URI de conexión directa
-db_uri = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
+MONGO_URI = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
 
 def db_connect():
     """Establece la conexión con la base de datos MongoDB."""
     try:
-        client = pymongo.MongoClient(db_uri)
+        client = pymongo.MongoClient(MONGO_URI)
+        db = client["discord_server"]
         print("✅ Conexión exitosa a MongoDB Atlas.")
-        return client
+        return db["users"]
     except Exception as e:
         print(f"❌ Error al conectar con MongoDB: {e}")
         return None
 
-def register_user(conn, discord_id, discord_name):
-    """Registra un usuario en la base de datos con datos iniciales."""
-    try:
-        db = conn["discord_server"]
-        col = db["users"]
-        doc = {
-            "discordID": str(discord_id),
-            "userName": str(discord_name),
-            "monedas": 0,
-            "clase": "Sin clase",
-            "nivel": 1,
-            "clan": "Sin clan",
-            "poder_total": 0
-        }
-        result = col.insert_one(doc)
-        print(f"✅ Usuario {discord_name} registrado con ID: {result.inserted_id}")
-    except Exception as e:
-        print(f"❌ ERROR al insertar usuario en MongoDB: {e}")
+def verify_user(users, discord_id):
+    """Verifica si un usuario existe por su ID de Discord."""
+    return users.find_one({"discordID": str(discord_id)}) is not None
 
-def verify_id(conn, discord_id):
-    """Verifica si el usuario ya está registrado en la base de datos."""
-    try:
-        db = conn["discord_server"]
-        col = db["users"]
-        user = col.find_one({"discordID": str(discord_id)})
-        if user:
-            print(f"✅ El usuario con ID {discord_id} ya existe.")
-            return True
-        else:
-            print(f"❌ El usuario con ID {discord_id} no existe.")
-            return False
-    except Exception as e:
-        print(f"❌ Error al verificar el ID: {e}")
-        return False
+def register_user(users, discord_id, user_name):
+    """Registra un nuevo usuario con datos iniciales."""
+    users.insert_one({
+        "discordID": str(discord_id),
+        "userName": str(user_name),
+        "monedas": 0,
+        "clase": "Sin clase",
+        "nivel": 1,
+        "clan": "Sin clan",
+        "poder_total": 0
+    })
 
-def update_user_data(conn, discord_id, field, value):
-    """Actualiza los datos de un usuario en la base de datos."""
-    try:
-        db = conn["discord_server"]
-        col = db["users"]
-        update = {"$set": {field: value}}
-        result = col.update_one({"discordID": str(discord_id)}, update)
-        if result.modified_count > 0:
-            print(f"✅ {field} actualizado exitosamente para el usuario {discord_id}.")
-        else:
-            print(f"❌ No se pudo actualizar {field} para el usuario {discord_id}.")
-    except Exception as e:
-        print(f"❌ Error al actualizar datos del usuario: {e}")
+def update_user(users, discord_id, field, value):
+    """Actualiza un campo específico del usuario."""
+    users.update_one({"discordID": str(discord_id)}, {"$set": {field: value}})
