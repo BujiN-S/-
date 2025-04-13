@@ -41,6 +41,45 @@ async def start(interaction: discord.Interaction):
         users.insert_one({"discordID": user_id, "userName": user_name})
         await interaction.response.send_message("¡Bienvenido al juego! 🎮", ephemeral=True)
 
+@bot.tree.command(name="perfil", description="Muestra el perfil del jugador")
+async def perfil(interaction: discord.Interaction):
+    if not users:
+        await interaction.response.send_message("❌ No se pudo conectar a la base de datos.")
+        return
+
+    user_id = str(interaction.user.id)
+    user_name = interaction.user.name
+
+    # Si el usuario no está registrado, lo registramos automáticamente
+    if not users.find_one({"discordID": user_id}):
+        users.insert_one({
+            "discordID": user_id,
+            "userName": user_name,
+            "monedas": 0,
+            "clase": "Sin clase",
+            "nivel": 1,
+            "clan": "Sin clan",
+            "poder_total": 0
+        })
+
+    user_data = users.find_one({"discordID": user_id})
+    avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
+
+    embed = discord.Embed(
+        title=f"👤 Perfil de {user_name}",
+        description="Aquí tienes tu información como jugador:",
+        color=discord.Color.blurple()
+    )
+    embed.set_thumbnail(url=avatar_url)
+    embed.add_field(name="🆔 ID de Usuario", value=user_data['discordID'], inline=False)
+    embed.add_field(name="💰 Monedas", value=user_data.get('monedas', 0), inline=True)
+    embed.add_field(name="⚔️ Clase", value=user_data.get('clase', 'Sin clase'), inline=True)
+    embed.add_field(name="🔝 Nivel", value=user_data.get('nivel', 1), inline=True)
+    embed.add_field(name="🏠 Clan", value=user_data.get('clan', 'Sin clan'), inline=True)
+    embed.add_field(name="💪 Poder Total", value=user_data.get('poder_total', 0), inline=True)
+
+    await interaction.response.send_message(embed=embed)
+
 # === Evento al iniciar el bot ===
 @bot.event
 async def on_ready():
