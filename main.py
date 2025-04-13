@@ -43,6 +43,7 @@ async def start(interaction: discord.Interaction):
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
     await bot.tree.sync()
+    await bot.load_extension("general")
 
 # === Ejecutar el bot en segundo plano ===
 def run_bot():
