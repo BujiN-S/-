@@ -1,32 +1,24 @@
-import os
-import threading
-import asyncio
 import discord
 from discord.ext import commands
-from flask import Flask
-from db.database import db_connect, verify_user, register_user, update_user  # ← Importamos las funciones útiles
-
-# === Flask para keep-alive ===
-app = Flask(__name__)
-
-@app.route("/")
-def index():
-    return "Bot y servidor activos ✅"
+from db.database import db_connect, verify_user, register_user, update_user
+import asyncio
 
 # === Configuración de conexión ===
 TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"
 APP_ID = 1352495612813250640
 
-# === Conexión MongoDB ===
-users = db_connect()
-
-# === Configuración del bot ===
-intents = discord.Intents.all()
+intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, application_id=APP_ID)
+users = db_connect()
 
-# === Comando básico para iniciar el juego ===
+@bot.event
+async def on_ready():
+    print(f"✅ Bot conectado como {bot.user}")
+    synced = await bot.tree.sync()
+    print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
+
 @bot.tree.command(name="start", description="Start your adventure!")
 async def start(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
@@ -38,15 +30,8 @@ async def start(interaction: discord.Interaction):
         register_user(users, user_id, user_name)
         await interaction.response.send_message("¡Bienvenido al juego! 🎮", ephemeral=True)
 
-# === Comando para mostrar el perfil del jugador ===
 @bot.tree.command(name="perfil", description="Muestra el perfil del jugador")
 async def perfil(interaction: discord.Interaction):
-    users = db_connect()  # Se asegura de reconectar si es necesario
-
-    if not users:
-        await interaction.response.send_message("❌ No se pudo conectar a la base de datos.", ephemeral=True)
-        return
-
     user_id = str(interaction.user.id)
     user_data = users.find_one({"discordID": user_id})
 
@@ -55,7 +40,6 @@ async def perfil(interaction: discord.Interaction):
         return
 
     avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
-
     embed = discord.Embed(
         title=f"👤 Perfil de {interaction.user.name}",
         description="Aquí tienes tu información como jugador:",
@@ -71,15 +55,9 @@ async def perfil(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-# === Evento al iniciar el bot ===
-@bot.event
-async def on_ready():
-    print(f"✅ Bot conectado como {bot.user}")
-    synced = await bot.tree.sync()
-    print(f"🔄 Comandos sincronizados globalmente: {[cmd.name for cmd in synced]}")
+# Iniciar el bot
+async def main():
+    async with bot:
+        await bot.start(TOKEN)
 
-# === Iniciar el bot en segundo plano ===
-def run_bot():
-    asyncio.run(bot.start(TOKEN))
-
-threading.Thread(target=run_bot).start()
+asyncio.run(main())
