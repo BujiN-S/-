@@ -1,9 +1,19 @@
+import os
 import discord
-from discord.ext import commands
-from db.database import db_connect, verify_user, register_user, update_user
+import threading
 import asyncio
+from discord.ext import commands
+from flask import Flask
+from db.database import db_connect, verify_user, register_user
 
-# === Configuración de conexión ===
+# === Configuración Flask ===
+app = Flask(__name__)
+
+@app.route('/')
+def index():
+    return "✅ Bot activo desde Render."
+
+# === Configuración bot Discord ===
 TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"
 APP_ID = 1352495612813250640
 
@@ -55,9 +65,12 @@ async def perfil(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-# Iniciar el bot
-async def main():
-    async with bot:
-        await bot.start(TOKEN)
+# === Ejecutar bot en segundo plano ===
+def run_bot():
+    asyncio.run(bot.start(TOKEN))
 
-asyncio.run(main())
+threading.Thread(target=run_bot).start()
+
+# === Ejecutar app Flask ===
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
