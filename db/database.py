@@ -19,11 +19,19 @@ def db_connect():
         return None
 
 def register_user(conn, discord_id, discord_name):
-    """Registra un usuario en la base de datos."""
+    """Registra un usuario en la base de datos con datos iniciales."""
     try:
         db = conn["discord_server"]
         col = db["users"]
-        doc = {"discordID": str(discord_id), "userName": str(discord_name)}
+        doc = {
+            "discordID": str(discord_id),
+            "userName": str(discord_name),
+            "monedas": 0,  # Inicialmente 0
+            "clase": "Sin clase",  # Inicialmente sin clase
+            "nivel": 1,  # Inicialmente nivel 1
+            "clan": "Sin clan",  # Inicialmente sin clan
+            "poder_total": 0  # Inicialmente 0 poder
+        }
         
         # Insertar el documento
         result = col.insert_one(doc)
@@ -49,3 +57,19 @@ def verify_id(conn, discord_id):
     except Exception as e:
         print(f"❌ Error al verificar el ID: {e}")
         return False
+
+def update_user_data(conn, discord_id, field, value):
+    """Actualiza los datos de un usuario en la base de datos."""
+    try:
+        db = conn["discord_server"]
+        col = db["users"]
+        
+        # Actualizar el campo específico del usuario
+        update = { "$set": { field: value } }
+        result = col.update_one({"discordID": str(discord_id)}, update)
+        if result.modified_count > 0:
+            print(f"✅ {field} actualizado exitosamente para el usuario {discord_id}.")
+        else:
+            print(f"❌ No se pudo actualizar {field} para el usuario {discord_id}.")
+    except Exception as e:
+        print(f"❌ Error al actualizar datos del usuario: {e}")
