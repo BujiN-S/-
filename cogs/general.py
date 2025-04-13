@@ -50,4 +50,7 @@ class General(commands.Cog):
 async def setup(bot: commands.Bot):
     cog = General(bot)
     await bot.add_cog(cog)
-    bot.tree.add_command(cog.perfil, guild=None)  # 🔥 Esto lo registra global
+
+    # ✅ Forzar registro global del comando
+    if not bot.tree.get_command("perfil"):
+        bot.tree.add_command(cog.perfil, guild=None)

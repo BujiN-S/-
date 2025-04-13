@@ -49,9 +49,12 @@ async def on_ready():
     # Cargar la extensión de comandos
     await bot.load_extension("general")
 
-    # Sincronizar los comandos del árbol (tree)
+    # Esperar un momento para asegurar que los comandos del cog estén listos
+    await asyncio.sleep(1)
+
+    # Sincronizar comandos globales
     synced = await bot.tree.sync()
-    print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
+    print(f"🔄 Comandos sincronizados globalmente: {[cmd.name for cmd in synced]}")
 
 # === Iniciar el bot en segundo plano ===
 def run_bot():
