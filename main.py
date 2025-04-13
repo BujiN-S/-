@@ -41,17 +41,21 @@ async def start(interaction: discord.Interaction):
 # === Comando para mostrar el perfil del jugador ===
 @bot.tree.command(name="perfil", description="Muestra el perfil del jugador")
 async def perfil(interaction: discord.Interaction):
+    users = db_connect()  # Se asegura de reconectar si es necesario
+
     if not users:
         await interaction.response.send_message("❌ No se pudo conectar a la base de datos.", ephemeral=True)
         return
 
     user_id = str(interaction.user.id)
     user_data = users.find_one({"discordID": user_id})
+
     if not user_data:
         await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
         return
 
     avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
+
     embed = discord.Embed(
         title=f"👤 Perfil de {interaction.user.name}",
         description="Aquí tienes tu información como jugador:",
