@@ -41,8 +41,11 @@ async def start(interaction: discord.Interaction):
         users.insert_one({"discordID": user_id, "userName": user_name})
         await interaction.response.send_message("¡Bienvenido al juego! 🎮", ephemeral=True)
 
+# === Comando para mostrar el perfil del jugador ===
 @bot.tree.command(name="perfil", description="Muestra el perfil del jugador")
 async def perfil(interaction: discord.Interaction):
+    print("🧪 Ejecutando /perfil")
+
     if not users:
         await interaction.response.send_message("❌ No se pudo conectar a la base de datos.")
         return
@@ -50,19 +53,11 @@ async def perfil(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     user_name = interaction.user.name
 
-    # Si el usuario no está registrado, lo registramos automáticamente
-    if not users.find_one({"discordID": user_id}):
-        users.insert_one({
-            "discordID": user_id,
-            "userName": user_name,
-            "monedas": 0,
-            "clase": "Sin clase",
-            "nivel": 1,
-            "clan": "Sin clan",
-            "poder_total": 0
-        })
-
     user_data = users.find_one({"discordID": user_id})
+    if not user_data:
+        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        return
+
     avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
 
     embed = discord.Embed(
