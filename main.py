@@ -7,7 +7,7 @@ from pymongo import MongoClient
 from flask import Flask
 
 # === FLASK KEEP-ALIVE SERVER ===
-app = Flask(__name__)
+app = Flask(__name__)  # CORREGIDO: usar __name__
 
 @app.route('/')
 def home():
@@ -56,6 +56,6 @@ async def main():
     async with bot:
         await bot.start(TOKEN)
 
-# === Solo para pruebas locales ===
+# === Solo para entorno local ===
 if __name__ == "__main__":
     asyncio.run(main())
