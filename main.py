@@ -4,7 +4,7 @@ import asyncio
 import discord
 from discord.ext import commands
 from flask import Flask
-from pymongo import MongoClient
+from db.database import db_connect, verify_user, register_user, update_user  # ← Importamos las funciones útiles
 
 # === Flask para keep-alive ===
 app = Flask(__name__)
@@ -16,12 +16,9 @@ def index():
 # === Configuración de conexión ===
 TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"
 APP_ID = 1352495612813250640
-MONGO_URI = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
 
 # === Conexión MongoDB ===
-client = MongoClient(MONGO_URI)
-db = client["discord_server"]
-users = db["users"]
+users = db_connect()
 
 # === Configuración del bot ===
 intents = discord.Intents.all()
@@ -35,10 +32,10 @@ async def start(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     user_name = interaction.user.name
 
-    if users.find_one({"discordID": user_id}):
+    if verify_user(users, user_id):
         await interaction.response.send_message("Ya estás registrado. ✅", ephemeral=True)
     else:
-        users.insert_one({"discordID": user_id, "userName": user_name})
+        register_user(users, user_id, user_name)
         await interaction.response.send_message("¡Bienvenido al juego! 🎮", ephemeral=True)
 
 # === Comando para mostrar el perfil del jugador ===
@@ -49,17 +46,14 @@ async def perfil(interaction: discord.Interaction):
         return
 
     user_id = str(interaction.user.id)
-    user_name = interaction.user.name
-
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
         await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
         return
 
     avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
-
     embed = discord.Embed(
-        title=f"👤 Perfil de {user_name}",
+        title=f"👤 Perfil de {interaction.user.name}",
         description="Aquí tienes tu información como jugador:",
         color=discord.Color.blurple()
     )
@@ -77,8 +71,6 @@ async def perfil(interaction: discord.Interaction):
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
-
-    # Sincronizar comandos globales directamente
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados globalmente: {[cmd.name for cmd in synced]}")
 
