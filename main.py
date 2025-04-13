@@ -85,13 +85,7 @@ async def perfil(interaction: discord.Interaction):
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
 
-    # Cargar la extensión de comandos
-    await bot.load_extension("general")
-
-    # Esperar un momento para asegurar que los comandos del cog estén listos
-    await asyncio.sleep(1)
-
-    # Sincronizar comandos globales
+    # Sincronizar comandos globales directamente
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados globalmente: {[cmd.name for cmd in synced]}")
 
