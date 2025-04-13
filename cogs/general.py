@@ -49,4 +49,3 @@ class General(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(General(bot))
-    await bot.tree.sync()
