@@ -102,27 +102,32 @@ async def recompensa(interaction: discord.Interaction):
         return
 
     now = datetime.utcnow()
-    cooldown = cooldowns.get(user_id)
+    ultimo = user_data.get("ultimo_reclamo")
 
-    if cooldown and now < cooldown:
-        restante = cooldown - now
-        horas = int(restante.total_seconds() // 3600)
-        minutos = int((restante.total_seconds() % 3600) // 60)
-        await interaction.response.send_message(
-            f"⏳ Ya reclamaste tu recompensa.\nVuelve en {horas}h {minutos}min.",
-            ephemeral=True
-        )
-        return
+    if ultimo:
+        diferencia = now - ultimo
+        if diferencia < timedelta(hours=24):
+            restante = timedelta(hours=24) - diferencia
+            horas = restante.seconds // 3600
+            minutos = (restante.seconds % 3600) // 60
+            await interaction.response.send_message(
+                f"⏳ Ya reclamaste tu recompensa.\nVuelve en {horas}h {minutos}min.",
+                ephemeral=True
+            )
+            return
 
     recompensa = generar_recompensa()
     nueva_cantidad = user_data["monedas"] + recompensa
 
     users.update_one(
         {"discordID": user_id},
-        {"$set": {"monedas": nueva_cantidad}}
+        {
+            "$set": {
+                "monedas": nueva_cantidad,
+                "ultimo_reclamo": now
+            }
+        }
     )
-
-    cooldowns[user_id] = now + timedelta(hours=24)
 
     await interaction.response.send_message(
         f"🎁 Has recibido **{recompensa} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**."
