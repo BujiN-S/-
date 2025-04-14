@@ -125,8 +125,7 @@ async def recompensa(interaction: discord.Interaction):
     cooldowns[user_id] = now + timedelta(hours=24)
 
     await interaction.response.send_message(
-        f"🎁 Has recibido **{recompensa} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**.",
-        ephemeral=True
+        f"🎁 Has recibido **{recompensa} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**."
     )
 
 @bot.tree.command(name="balance", description="Consulta cuántas monedas tienes.")
@@ -151,7 +150,7 @@ async def balance(interaction: discord.Interaction):
     embed.set_thumbnail(url=avatar_url)
     embed.set_footer(text="¡Sigue jugando para ganar más monedas!")
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="apostar", description="Apuesta una cantidad de monedas y pon a prueba tu suerte.")
 @app_commands.describe(cantidad="Cantidad de monedas a apostar")
@@ -210,7 +209,7 @@ async def apostar(interaction: discord.Interaction, cantidad: int):
     embed.set_thumbnail(url=avatar_url)
     embed.set_footer(text=f"Nuevo balance: {nuevas_monedas} monedas")
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="dar", description="Envía monedas a otro jugador.")
 @app_commands.describe(usuario="Jugador que recibirá las monedas", cantidad="Cantidad a enviar")
@@ -264,7 +263,7 @@ async def dar(interaction: discord.Interaction, usuario: discord.User, cantidad:
     embed.set_thumbnail(url=avatar_url)
     embed.set_footer(text="Gracias por compartir tus riquezas 💰")
 
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed)
 
 # === Ejecutar bot en segundo plano ===
 def run_bot():
