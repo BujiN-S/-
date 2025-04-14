@@ -5,6 +5,8 @@ import asyncio
 from discord.ext import commands
 from flask import Flask
 from db.database import db_connect, verify_user, register_user
+from datetime import datetime, timedelta
+import random
 
 # === Configuración Flask ===
 app = Flask(__name__)
@@ -34,11 +36,19 @@ async def start(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     user_name = interaction.user.name
 
-    if verify_user(users, user_id):
-        await interaction.response.send_message("Ya estás registrado. ✅", ephemeral=True)
+    if users.find_one({"discordID": user_id}):
+        await interaction.response.send_message("✅ Ya estás registrado.", ephemeral=True)
     else:
-        register_user(users, user_id, user_name)
-        await interaction.response.send_message("¡Bienvenido al juego! 🎮", ephemeral=True)
+        users.insert_one({
+            "discordID": user_id,
+            "userName": user_name,
+            "monedas": 0,
+            "clase": "Sin clase",
+            "nivel": 1,
+            "clan": "Sin clan",
+            "poder_total": 0
+        })
+        await interaction.response.send_message("🎉 ¡Tu aventura ha comenzado!", ephemeral=True)
 
 @bot.tree.command(name="perfil", description="Muestra el perfil del jugador")
 async def perfil(interaction: discord.Interaction):
@@ -64,6 +74,59 @@ async def perfil(interaction: discord.Interaction):
     embed.add_field(name="💪 Poder Total", value=user_data.get("poder_total", 0), inline=True)
 
     await interaction.response.send_message(embed=embed)
+
+# === Comando /recompensa ===
+cooldowns = {}
+
+def generar_recompensa():
+    prob = random.random()
+    if prob < 0.4:
+        return random.randint(0, 500)
+    elif prob < 0.7:
+        return random.randint(500, 1500)
+    elif prob < 0.9:
+        return random.randint(1500, 3000)
+    elif prob < 0.98:
+        return random.randint(3000, 7000)
+    else:
+        return random.randint(7000, 10000)
+
+@bot.tree.command(name="recompensa", description="Reclama tu recompensa diaria.")
+async def recompensa(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    user_data = users.find_one({"discordID": user_id})
+
+    if not user_data:
+        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        return
+
+    now = datetime.utcnow()
+    cooldown = cooldowns.get(user_id)
+
+    if cooldown and now < cooldown:
+        restante = cooldown - now
+        horas = int(restante.total_seconds() // 3600)
+        minutos = int((restante.total_seconds() % 3600) // 60)
+        await interaction.response.send_message(
+            f"⏳ Ya reclamaste tu recompensa.\nVuelve en {horas}h {minutos}min.",
+            ephemeral=True
+        )
+        return
+
+    recompensa = generar_recompensa()
+    nueva_cantidad = user_data["monedas"] + recompensa
+
+    users.update_one(
+        {"discordID": user_id},
+        {"$set": {"monedas": nueva_cantidad}}
+    )
+
+    cooldowns[user_id] = now + timedelta(hours=24)
+
+    await interaction.response.send_message(
+        f"🎁 Has recibido **{recompensa} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**.",
+        ephemeral=True
+    )
 
 # === Ejecutar bot en segundo plano ===
 def run_bot():
