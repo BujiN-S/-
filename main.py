@@ -128,6 +128,30 @@ async def recompensa(interaction: discord.Interaction):
         ephemeral=True
     )
 
+@bot.tree.command(name="balance", description="Consulta cuántas monedas tienes.")
+async def balance(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    user_name = interaction.user.name
+    avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
+
+    user_data = users.find_one({"discordID": user_id})
+
+    if not user_data:
+        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        return
+
+    monedas = user_data.get("monedas", 0)
+
+    embed = discord.Embed(
+        title=f"💰 Balance de {user_name}",
+        description=f"Tienes **{monedas} monedas** actualmente.",
+        color=discord.Color.gold()
+    )
+    embed.set_thumbnail(url=avatar_url)
+    embed.set_footer(text="¡Sigue jugando para ganar más monedas!")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 # === Ejecutar bot en segundo plano ===
 def run_bot():
     asyncio.run(bot.start(TOKEN))
