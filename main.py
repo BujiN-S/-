@@ -3,6 +3,7 @@ import discord
 import threading
 import asyncio
 from discord.ext import commands
+from discord import app_commands
 from flask import Flask
 from db.database import db_connect, verify_user, register_user
 from datetime import datetime, timedelta
@@ -149,6 +150,119 @@ async def balance(interaction: discord.Interaction):
     )
     embed.set_thumbnail(url=avatar_url)
     embed.set_footer(text="¡Sigue jugando para ganar más monedas!")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="apostar", description="Apuesta una cantidad de monedas y pon a prueba tu suerte.")
+@app_commands.describe(cantidad="Cantidad de monedas a apostar")
+async def apostar(interaction: discord.Interaction, cantidad: int):
+    user_id = str(interaction.user.id)
+    user_name = interaction.user.name
+    avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
+
+    # Validar cantidad
+    if cantidad <= 0:
+        await interaction.response.send_message("❌ La cantidad debe ser mayor que cero.", ephemeral=True)
+        return
+
+    user_data = users.find_one({"discordID": user_id})
+    if not user_data:
+        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        return
+
+    monedas_actuales = user_data.get("monedas", 0)
+    if cantidad > monedas_actuales:
+        await interaction.response.send_message("❌ No tienes suficientes monedas para apostar esa cantidad.", ephemeral=True)
+        return
+
+    # Generar resultado
+    prob = random.random()
+    if prob < 0.20:
+        multiplicador = 0    # pierde todo
+        resultado = "❌ Perdiste todo"
+    elif prob < 0.50:
+        multiplicador = 0.5  # pierde la mitad
+        resultado = "⚠️ Perdiste la mitad"
+    elif prob < 0.80:
+        multiplicador = 1    # recupera
+        resultado = "✅ Recuperaste tu apuesta"
+    elif prob < 0.95:
+        multiplicador = 2    # gana el doble
+        resultado = "💰 ¡Ganaste el doble!"
+    else:
+        multiplicador = 3    # gana el triple
+        resultado = "🔥 ¡CRÍTICO! ¡Ganaste el triple!"
+
+    ganancia = int(cantidad * multiplicador)
+    nuevas_monedas = monedas_actuales - cantidad + ganancia
+
+    users.update_one(
+        {"discordID": user_id},
+        {"$set": {"monedas": nuevas_monedas}}
+    )
+
+    # Embed del resultado
+    embed = discord.Embed(
+        title="🎲 Resultado de la apuesta",
+        description=f"{resultado}\n\n💸 Apostaste: **{cantidad} monedas**\n💰 Ganaste: **{ganancia} monedas**",
+        color=discord.Color.orange()
+    )
+    embed.set_thumbnail(url=avatar_url)
+    embed.set_footer(text=f"Nuevo balance: {nuevas_monedas} monedas")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="dar", description="Envía monedas a otro jugador.")
+@app_commands.describe(usuario="Jugador que recibirá las monedas", cantidad="Cantidad a enviar")
+async def dar(interaction: discord.Interaction, usuario: discord.User, cantidad: int):
+    emisor_id = str(interaction.user.id)
+    receptor_id = str(usuario.id)
+    emisor_nombre = interaction.user.name
+    avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
+
+    if cantidad <= 0:
+        await interaction.response.send_message("❌ La cantidad debe ser mayor que cero.", ephemeral=True)
+        return
+
+    if emisor_id == receptor_id:
+        await interaction.response.send_message("❌ No puedes darte monedas a ti mismo, genio.", ephemeral=True)
+        return
+
+    # Verificar que ambos estén registrados
+    emisor = users.find_one({"discordID": emisor_id})
+    receptor = users.find_one({"discordID": receptor_id})
+
+    if not emisor:
+        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        return
+
+    if not receptor:
+        await interaction.response.send_message(f"❌ {usuario.name} no está registrado.", ephemeral=True)
+        return
+
+    saldo_emisor = emisor.get("monedas", 0)
+    if saldo_emisor < cantidad:
+        await interaction.response.send_message("❌ No tienes suficientes monedas para enviar esa cantidad.", ephemeral=True)
+        return
+
+    # Transferencia
+    nuevo_emisor = saldo_emisor - cantidad
+    nuevo_receptor = receptor.get("monedas", 0) + cantidad
+
+    users.update_one({"discordID": emisor_id}, {"$set": {"monedas": nuevo_emisor}})
+    users.update_one({"discordID": receptor_id}, {"$set": {"monedas": nuevo_receptor}})
+
+    # Embed de confirmación
+    embed = discord.Embed(
+        title="💸 Transferencia completada",
+        description=(
+            f"Has enviado **{cantidad} monedas** a {usuario.mention}.\n"
+            f"Tu nuevo saldo es de **{nuevo_emisor} monedas**."
+        ),
+        color=discord.Color.green()
+    )
+    embed.set_thumbnail(url=avatar_url)
+    embed.set_footer(text="Gracias por compartir tus riquezas 💰")
 
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
