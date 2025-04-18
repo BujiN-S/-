@@ -94,8 +94,6 @@ def generar_recompensa_monedas():
 
 @bot.tree.command(name="recompensa", description="Reclama tu recompensa diaria.")
 async def recompensa(interaction: discord.Interaction):
-    from datetime import datetime, timedelta
-    import random
 
     user_id = str(interaction.user.id)
     users = db_collections["users"]
