@@ -176,6 +176,7 @@ async def recompensa(interaction: discord.Interaction):
         f"🖼 {carta['image']}"
     )
 
+# Conexión a la base de datos
 db = db_connect()
 users = db["users"]
 cards_collection = db["cards"]
@@ -217,7 +218,7 @@ async def cartarecompensa(interaction: discord.Interaction):
     elif prob < 0.70:
         rareza = "D"
     else:
-        rareza = "E"
+        rank = "E"
 
     # 📦 Buscar una carta al azar de esa rareza
     cartas_disponibles = list(cards_collection.find({"rank": rareza}))
