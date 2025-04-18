@@ -14,6 +14,7 @@ def db_connect():
         print(f"❌ Error al conectar con MongoDB: {e}")
         return None
 
+# Tus funciones para usuarios siguen igual
 def verify_user(users, discord_id):
     """Verifica si un usuario existe por su ID de Discord."""
     return users.find_one({"discordID": str(discord_id)}) is not None
