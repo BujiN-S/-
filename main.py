@@ -9,6 +9,9 @@ from db.database import db_connect, verify_user, register_user
 from datetime import datetime, timedelta
 import random
 
+db_collections = db_connect()
+cooldowns = {}
+
 # === Configuración Flask ===
 app = Flask(__name__)
 
