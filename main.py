@@ -178,8 +178,12 @@ async def recompensa(interaction: discord.Interaction):
 
 # Conexión a la base de datos
 db = db_connect()
-users = db["users"]
-cards_collection = db["cards"]
+
+if db:
+    users = db["users"]
+    core_cards = db["core_cards"]  # <- Asegurate de que la colección se llame así
+else:
+    print("❌ No se pudo conectar a la base de datos.")
 
 # === Comando /cartarecompensa ===
 @bot.tree.command(name="cartarecompensa", description="Reclama una carta gratis cada hora.")
@@ -206,29 +210,29 @@ async def cartarecompensa(interaction: discord.Interaction):
     # 🎲 Determinar rareza de la carta
     prob = random.random()
     if prob < 0.001:
-        rareza = "Z"
+        rank = "Z"
     elif prob < 0.04:
-        rareza = "S"
+        rank = "S"
     elif prob < 0.10:
-        rareza = "A"
+        rank = "A"
     elif prob < 0.25:
-        rareza = "B"
+        rank = "B"
     elif prob < 0.45:
-        rareza = "C"
+        rank = "C"
     elif prob < 0.70:
-        rareza = "D"
+        rank = "D"
     else:
         rank = "E"
 
-    # 📦 Buscar una carta al azar de esa rareza
-    cartas_disponibles = list(cards_collection.find({"rank": rareza}))
+    # 📦 Buscar una carta aleatoria de esa rareza
+    cartas_disponibles = list(core_cards.find({"rank": rank}))
     if not cartas_disponibles:
         await interaction.response.send_message("❌ No hay cartas disponibles de esta rareza.", ephemeral=True)
         return
 
     carta_obtenida = random.choice(cartas_disponibles)
 
-    # 🆔 Generar ID única para la carta del jugador
+    # 🆔 Crear carta única para el jugador
     carta_jugador = {
         "carta_id": carta_obtenida["id"],
         "instancia_id": str(random.getrandbits(64)),  # ID única
@@ -244,7 +248,7 @@ async def cartarecompensa(interaction: discord.Interaction):
     )
 
     await interaction.response.send_message(
-        f"🎴 Obtuviste la carta **{carta_obtenida['name']}** [**{rareza}**]\n{carta_obtenida['image']}"
+        f"🎴 Obtuviste la carta **{carta_obtenida['name']}** [**{rank}**]\n{carta_obtenida['image']}"
     )
 
 @bot.tree.command(name="balance", description="Consulta cuántas monedas tienes.")
