@@ -1,5 +1,5 @@
 import pymongo
-from db.database import db_connect
+from database import db_connect
 
 # 📦 Lista de 30 cartas distintas (rellená los campos)
 cards = [
@@ -229,7 +229,7 @@ cards = [
         "image": "https://i.imgur.com/d0EF9Kt.png"
     },
     {
-        "id": "B006",
+        "id": "B0006",
         "name": "Raynare",
         "rank": "B",
         "class": "Baddie",
