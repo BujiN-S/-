@@ -10,7 +10,16 @@ cards = [
         "class": "Beginbringer",
         "role": "Radiant Healer",
         "ability": "Benevolent Grace",
-        "image": "https://i.imgur.com/Nthf6oF.png"
+        "image": "https://i.imgur.com/Nthf6oF.png",
+        "stats": {
+            "atk": 13,
+            "def": 14,
+            "vel": 13,
+            "hp": 15,
+            "int": 13
+        },
+        "overall": 14,
+        "rank": "Z"
     },
     {
         "id": "C0001",
