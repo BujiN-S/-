@@ -481,11 +481,11 @@ async def catalog(interaction: discord.Interaction):
 async def buscarcarta(interaction: discord.Interaction, name: str = None, class_: str = None, role: str = None, rank: str = None):
     filtros = {}
     if name:
-        filtros["name"] = {"$regex": f"^{name}$", "$options": "i"}
+        filtros["name"] = {"$regex": name, "$options": "i"}
     if class_:
-        filtros["class"] = class_
+        filtros["class"] = {"$regex": class_, "$options": "i"}
     if role:
-        filtros["role"] = role
+        filtros["role"] = {"$regex": role, "$options": "i"}
     if rank:
         filtros["rank"] = rank.upper()
 
@@ -496,7 +496,7 @@ async def buscarcarta(interaction: discord.Interaction, name: str = None, class_
         return
 
     if len(cartas) == 1:
-        embed = generar_embed_carta(cartas[0])
+        embed = generar_embed_carta(cartas[0], con_footer=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
     else:
         view = CatalogView(cartas, per_page=10)
