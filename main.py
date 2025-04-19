@@ -9,8 +9,10 @@ from db.database import db_connect, verify_user, register_user
 from datetime import datetime, timedelta
 import random
 
+# Conexión a MongoDB y colecciones
 db_collections = db_connect()
-cooldowns = {}
+users = db_collections["users"]
+core_cards = db_collections["core_cards"]
 
 def color_por_rango(rango):
     colores = {
@@ -58,7 +60,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, application_id=APP_ID)
-users = db_connect()
 
 @bot.event
 async def on_ready():
@@ -127,7 +128,7 @@ def generar_recompensa_monedas():
 async def recompensa(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     users = db_collections["users"]
-    cards = db_collections["cards"]
+    core_cards = db_collections["core_cards"]
 
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
@@ -184,7 +185,7 @@ async def recompensa(interaction: discord.Interaction):
         return "E"
 
     rango = elegir_rango(probabilidades)
-    cartas = list(cards.find({"rank": rango}))
+    cartas = list(core_cards.find({"rank": rango}))
     carta = random.choice(cartas) if cartas else None
 
     if carta:
@@ -204,7 +205,7 @@ async def recompensa(interaction: discord.Interaction):
 async def carta_recompensa(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     users = db_collections["users"]
-    cards = db_collections["cards"]
+    core_cards = db_collections["core_cards"]
 
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
@@ -237,7 +238,7 @@ async def carta_recompensa(interaction: discord.Interaction):
     }
 
     rango = random.choices(list(probabilidades.keys()), list(probabilidades.values()))[0]
-    cartas = list(cards.find({"rank": rango}))
+    cartas = list(core_cards.find({"rank": rango}))
     carta = random.choice(cartas) if cartas else None
 
     users.update_one(
