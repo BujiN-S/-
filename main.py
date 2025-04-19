@@ -27,7 +27,7 @@ def color_por_rango(rango):
     }
     return colores.get(rango.upper(), discord.Color.default())
 
-def generar_embed_carta(carta):
+def generar_embed_carta(carta, mostrar_footer=True):
     embed = discord.Embed(
         color=color_por_rango(carta["rank"]),
         description=f"""
@@ -42,7 +42,10 @@ def generar_embed_carta(carta):
 """.strip()
     )
     embed.set_image(url=carta["image"])
-    embed.set_footer(text="Una nueva presencia se une a tu colección...")
+
+    if mostrar_footer:
+        embed.set_footer(text="Una nueva presencia se une a tu colección...")
+
     return embed
 
 # === Configuración Flask ===
@@ -441,7 +444,7 @@ class CatalogView(ui.View):
         carta_id = self.select.values[0]
         carta = next((c for c in self.cartas if c['id'] == carta_id), None)
         if carta:
-            embed = generar_embed_carta(carta)
+            embed = generar_embed_carta(carta, mostrar_footer=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message("❌ No se encontró la carta.", ephemeral=True)
