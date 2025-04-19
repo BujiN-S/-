@@ -31,18 +31,17 @@ def generar_embed_carta(carta):
     embed = discord.Embed(
         color=color_por_rango(carta["rango"]),
         description=f"""
-**📝 Nombre:** {carta['nombre']}
-**🎖️ Rango:** {carta['rango']}
-**🏷️ Clase:** {carta['clase']}
-**🎭 Rol:** {carta['rol']}
+**📝 Name:** {carta['name']}
+**🎖️ Rank:** {carta['rank']}
+**🏷️ Class:** {carta['class']}
+**🎭 Role:** {carta['role']}
 
 **📊 Stats:**  
-🗡️ Ataque: {carta['stats']['ataque']} | 🛡️ Defensa: {carta['stats']['defensa']} | 🔮 Magia: {carta['stats']['magia']} | 💠 Resistencia: {carta['stats']['resistencia']} | 🎯 Técnica: {carta['stats']['tecnica']}
-
+🗡️ ATK: {carta['stats']['atk']} | 🛡️ DEF: {carta['stats']['def']} | ⚡ VEL: {carta['stats']['vel']} | ❤️ HP: {carta['stats']['hp']} | 🧠 INT: {carta['stats']['int']}
 **🔥 Poder Total:** {carta['overall']}
 """.strip()
     )
-    embed.set_image(url=carta["imagen"])
+    embed.set_image(url=carta["image"])
     embed.set_footer(text="Una nueva presencia se une a tu colección...")
     return embed
 
