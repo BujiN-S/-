@@ -481,8 +481,8 @@ cards = [
             "hp": 13,
             "int": 13
         },
-        "overall": 10,
-        "rank": "A"
+        "overall": 14,
+        "rank": "Z"
     },
 ]
 

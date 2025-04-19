@@ -460,7 +460,7 @@ class CatalogView(ui.View):
         for c in page:
             embed.add_field(
                 name=f"{c['name']} [{c['rank']}]",
-                value=f"Clase: {c['class']} • Rol: {c['role']}",
+                value=f"Class: {c['class']} • Role: {c['role']}",
                 inline=False
             )
         return embed
@@ -473,7 +473,7 @@ async def catalog(interaction: discord.Interaction):
         return
 
     view = CatalogView(all_cards, per_page=10)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+    await interaction.response.send_message(embed=view.get_embed(), view=view)
 
 # === Ejecutar bot en segundo plano ===
 def run_bot():
