@@ -476,6 +476,32 @@ async def catalog(interaction: discord.Interaction):
     view = CatalogView(all_cards, per_page=10)
     await interaction.response.send_message(embed=view.get_embed(), view=view)
 
+@bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
+@app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
+async def buscarcarta(interaction: discord.Interaction, name: str = None, class_: str = None, role: str = None, rank: str = None):
+    filtros = {}
+    if name:
+        filtros["name"] = {"$regex": f"^{name}$", "$options": "i"}
+    if class_:
+        filtros["class"] = class_
+    if role:
+        filtros["role"] = role
+    if rank:
+        filtros["rank"] = rank.upper()
+
+    cartas = list(core_cards.find(filtros))
+
+    if not cartas:
+        await interaction.response.send_message("❌ No se encontraron cartas con los criterios dados.", ephemeral=True)
+        return
+
+    if len(cartas) == 1:
+        embed = generar_embed_carta(cartas[0])
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    else:
+        view = CatalogView(cartas, per_page=10)
+        await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+
 # === Ejecutar bot en segundo plano ===
 def run_bot():
     asyncio.run(bot.start(TOKEN))
