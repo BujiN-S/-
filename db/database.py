@@ -9,7 +9,7 @@ def db_connect():
         print("✅ Conexión exitosa a MongoDB Atlas.")
         return {
             "users": db["users"],
-            "cards": db["core_cards"]  # <- Agregamos esta línea
+            "core_cards": db["core_cards"]
         }
     except Exception as e:
         print(f"❌ Error al conectar con MongoDB: {e}")
