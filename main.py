@@ -412,17 +412,17 @@ class CatalogView(ui.View):
         self.add_item(self.prev_button)
         self.add_item(self.next_button)
 
-        self._update_view()
+        self.update_select_options()
 
-    def _update_view(self):
+    def update_select_options(self):
         start = self.current * self.per_page
         end = start + self.per_page
         page = self.cartas[start:end]
 
-        self.select.options = [
-            discord.SelectOption(label=f"{c['name']} [{c['rank']}]", value=c['id'])
-            for c in page
-        ]
+        self.select.options.clear()
+        for c in page:
+            self.select.append_option(discord.SelectOption(label=f"{c['name']} [{c['rank']}]", value=c['id']))
+
         self.prev_button.disabled = self.current == 0
         max_page = (len(self.cartas) - 1) // self.per_page
         self.next_button.disabled = self.current >= max_page
@@ -430,21 +430,20 @@ class CatalogView(ui.View):
     async def on_prev(self, interaction: discord.Interaction):
         await interaction.response.defer()
         self.current -= 1
-        self._update_view()
-        await interaction.followup.edit_message(message_id=interaction.message.id, embed=self.get_embed(), view=self)
+        self.update_select_options()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     async def on_next(self, interaction: discord.Interaction):
-        await interaction.response.defer()
         self.current += 1
-        self._update_view()
-        await interaction.followup.edit_message(message_id=interaction.message.id, embed=self.get_embed(), view=self)
+        self.update_select_options()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     async def on_select(self, interaction: discord.Interaction):
         carta_id = self.select.values[0]
         carta = next((c for c in self.cartas if c['id'] == carta_id), None)
         if carta:
             embed = generar_embed_carta(carta)
-            await interaction.response.send_message(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message("❌ No se encontró la carta.", ephemeral=True)
 
@@ -454,7 +453,7 @@ class CatalogView(ui.View):
         page = self.cartas[start:end]
 
         embed = discord.Embed(
-            title=f"📚 Catálogo (Página {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
+            title=f"📚 Catálogo (Página {self.current + 1}/{(len(self.cartas) - 1) // self.per_page + 1})",
             color=discord.Color.blurple()
         )
         for c in page:
