@@ -48,6 +48,38 @@ def generar_embed_carta(carta, mostrar_footer=True):
 
     return embed
 
+def agregar_carta_usuario(user_id, carta):
+    # Obtén el documento del usuario en la colección user_cards
+    user_cards_data = db_collections["user_cards"].find_one({"discordID": user_id})
+
+    # Si no existe el documento, lo creamos
+    if not user_cards_data:
+        db_collections["user_cards"].insert_one({
+            "discordID": user_id,
+            "cards": []
+        })
+        user_cards_data = db_collections["user_cards"].find_one({"discordID": user_id})
+
+    # Asignamos un nuevo card_id basado en el número de cartas que ya tiene el usuario
+    card_id = len(user_cards_data["cards"]) + 1
+
+    # Preparar los datos de la carta para agregarla al usuario
+    nueva_carta = {
+        "card_id": card_id,
+        "name": carta["name"],
+        "class": carta["class"],
+        "role": carta["role"],
+        "rank": carta["rank"],
+        "image_url": carta["image_url"],
+        "obtained_at": datetime.utcnow().isoformat()  # Fecha de obtención
+    }
+
+    # Agregar la carta al array de cards del usuario
+    db_collections["user_cards"].update_one(
+        {"discordID": user_id},
+        {"$push": {"cards": nueva_carta}}
+    )
+
 # === Configuración Flask ===
 app = Flask(__name__)
 
@@ -86,7 +118,8 @@ async def start(interaction: discord.Interaction):
             "clase": "Sin clase",
             "nivel": 1,
             "clan": "Sin clan",
-            "poder_total": 0
+            "poder_total": 0,
+            "card_count": 0
         })
         await interaction.response.send_message("🎉 ¡Tu aventura ha comenzado!", ephemeral=True)
 
@@ -115,6 +148,7 @@ async def perfil(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
+# Función para obtener una recompensa de monedas
 def generar_recompensa_monedas():
     prob = random.random()
     if prob < 0.4:
@@ -128,33 +162,30 @@ def generar_recompensa_monedas():
     else:
         return random.randint(2500, 4000)
 
+# Función genérica para elegir un rango basado en probabilidades
+def elegir_rango(probabilidades):
+    r = random.random()
+    acumulado = 0
+    for rango, prob in sorted(probabilidades.items(), key=lambda x: -x[1]):
+        acumulado += prob
+        if r <= acumulado:
+            return rango
+    return "E"
+
+# Comando para reclamar la recompensa diaria
 @bot.tree.command(name="recompensa", description="Reclama tu recompensa diaria.")
 async def recompensa(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     users = db_collections["users"]
     core_cards = db_collections["core_cards"]
+    user_cards = db_collections["user_cards"]
 
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
         await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
         return
 
-    now = datetime.utcnow()
-    last_time = user_data.get("last_reward")
-
-    if last_time:
-        elapsed = now - last_time
-        if elapsed.total_seconds() < 86400:
-            restante = timedelta(seconds=86400) - elapsed
-            horas = int(restante.total_seconds() // 3600)
-            minutos = int((restante.total_seconds() % 3600) // 60)
-            await interaction.response.send_message(
-                f"⏳ Ya reclamaste tu recompensa.\nVuelve en {horas}h {minutos}min.",
-                ephemeral=True
-            )
-            return
-
-    # Recompensa de monedas
+    # Generamos la recompensa en monedas
     recompensa_monedas = generar_recompensa_monedas()
     nueva_cantidad = user_data.get("monedas", 0) + recompensa_monedas
 
@@ -163,12 +194,11 @@ async def recompensa(interaction: discord.Interaction):
         {
             "$set": {
                 "monedas": nueva_cantidad,
-                "last_reward": now
             }
         }
     )
 
-    # Probabilidades
+    # Probabilidad de la carta
     probabilidades = {
         "Z": 0.001,
         "S": 0.01,
@@ -193,7 +223,16 @@ async def recompensa(interaction: discord.Interaction):
     carta = random.choice(cartas) if cartas else None
 
     if carta:
-        embed = generar_embed_carta(carta)
+        # Aquí agregamos la carta al perfil del usuario con un ID secuencial basado en su contador
+        agregar_carta_usuario(user_id, carta)
+
+        embed = discord.Embed(
+            title=carta["name"],
+            description=f"Rango: {carta['rank']}\nClase: {carta['class']}\nRol: {carta['role']}",
+            color=discord.Color.blue()
+        )
+        embed.set_image(url=carta["image_url"])
+
         await interaction.response.send_message(
             f"🎁 Has recibido **{recompensa_monedas} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**.",
             embed=embed,
@@ -205,23 +244,26 @@ async def recompensa(interaction: discord.Interaction):
             ephemeral=True
         )
 
+# Comando para recibir una carta aleatoria
 @bot.tree.command(name="cartarecompensa", description="Recibe una carta aleatoria con baja probabilidad de obtener una rara (1h de cooldown).")
 async def carta_recompensa(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     users = db_collections["users"]
     core_cards = db_collections["core_cards"]
+    user_cards = db_collections["user_cards"]
 
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
         await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
         return
 
+    # Verificamos si el usuario tiene cooldown
     now = datetime.utcnow()
     last_time = user_data.get("last_hourly_card_reward")
 
     if last_time:
         elapsed = now - last_time
-        if elapsed.total_seconds() < 3600:
+        if elapsed.total_seconds() < 3600:  # 1 hora de cooldown
             restante = timedelta(seconds=3600) - elapsed
             minutos = int(restante.total_seconds() // 60)
             segundos = int(restante.total_seconds() % 60)
@@ -231,6 +273,7 @@ async def carta_recompensa(interaction: discord.Interaction):
             )
             return
 
+    # Probabilidad de obtener una carta de cada rango
     probabilidades = {
         "Z": 0.0001,
         "S": 0.0049,
@@ -245,13 +288,23 @@ async def carta_recompensa(interaction: discord.Interaction):
     cartas = list(core_cards.find({"rank": rango}))
     carta = random.choice(cartas) if cartas else None
 
+    # Actualizamos la hora del último reclamo
     users.update_one(
         {"discordID": user_id},
         {"$set": {"last_hourly_card_reward": now}}
     )
 
     if carta:
-        embed = generar_embed_carta(carta)
+        # Aquí agregamos la carta al perfil del usuario con un ID secuencial
+        agregar_carta_usuario(user_id, carta)
+
+        embed = discord.Embed(
+            title=carta["name"],
+            description=f"Rango: {carta['rank']}\nClase: {carta['class']}\nRol: {carta['role']}",
+            color=discord.Color.blue()
+        )
+        embed.set_image(url=carta["image_url"])
+
         await interaction.response.send_message(embed=embed, ephemeral=True)
     else:
         await interaction.response.send_message(
@@ -505,6 +558,87 @@ async def buscarcarta(interaction: discord.Interaction, name: str = None, class_
     else:
         view = CatalogView(cartas, per_page=10)
         await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+
+@bot.tree.command(name="collection", description="Muestra tus cartas obtenidas.")
+async def collection(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
+    user_cards = db_collections["user_cards"]
+
+    # Obtener los datos del usuario
+    user_cards_data = user_cards.find_one({"discordID": user_id})
+
+    if not user_cards_data or not user_cards_data.get("cards"):
+        await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
+        return
+
+    cards = user_cards_data["cards"]
+
+    # Si hay muchas cartas, implementamos paginación
+    page_size = 5
+    total_pages = (len(cards) // page_size) + (1 if len(cards) % page_size > 0 else 0)
+
+    # Página actual por defecto
+    page = 1
+
+    # Generamos el embed inicial
+    embed = discord.Embed(
+        title=f"🔮 Tu colección de cartas ({len(cards)} total)",
+        description=f"Página {page}/{total_pages}",
+        color=discord.Color.blue()
+    )
+
+    # Mostramos las cartas de la página actual
+    start_index = (page - 1) * page_size
+    end_index = start_index + page_size
+    current_page_cards = cards[start_index:end_index]
+
+    for carta in current_page_cards:
+        embed.add_field(
+            name=carta["name"],
+            value=f"**Rango**: {carta['rank']}\n**Clase**: {carta['class']}\n**Rol**: {carta['role']}",
+            inline=False
+        )
+        embed.set_image(url=carta["image_url"])
+
+    # Enviar el embed con las cartas de la página
+    message = await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # Si hay más de una página, agregar botones para navegar
+    if total_pages > 1:
+        await message.add_reaction("⬅️")  # Botón de página anterior
+        await message.add_reaction("➡️")  # Botón de siguiente página
+
+        # Esperar reacciones y manejar la paginación
+        def check(reaction, user):
+            return user == interaction.user and str(reaction.emoji) in ["⬅️", "➡️"]
+
+        try:
+            reaction, user = await bot.wait_for("reaction_add", check=check, timeout=60.0)
+            
+            if str(reaction.emoji) == "➡️" and page < total_pages:
+                page += 1
+            elif str(reaction.emoji) == "⬅️" and page > 1:
+                page -= 1
+
+            # Rehacer el embed con la nueva página
+            embed.description = f"Página {page}/{total_pages}"
+
+            current_page_cards = cards[(page - 1) * page_size: page * page_size]
+            embed.clear_fields()
+
+            for carta in current_page_cards:
+                embed.add_field(
+                    name=carta["name"],
+                    value=f"**Rango**: {carta['rank']}\n**Clase**: {carta['class']}\n**Rol**: {carta['role']}",
+                    inline=False
+                )
+                embed.set_image(url=carta["image_url"])
+
+            # Actualizar el mensaje con la nueva página de cartas
+            await message.edit(embed=embed)
+            await message.remove_reaction(reaction, user)
+        except asyncio.TimeoutError:
+            await message.clear_reactions()
 
 # === Ejecutar bot en segundo plano ===
 def run_bot():
