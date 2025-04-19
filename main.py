@@ -423,7 +423,7 @@ class CatalogView(ui.View):
 
         # Actualizar select options
         self.select.options = [
-            discord.SelectOption(label=f"{c['nombre']} [{c['rango']}]", value=c['id'])
+            discord.SelectOption(label=f"{c['name']} [{c['rank']}]", value=c['id'])
             for c in page
         ]
         # Estado de botones
@@ -459,8 +459,8 @@ class CatalogView(ui.View):
         )
         for c in page:
             embed.add_field(
-                name=f"{c['nombre']} [{c['rango']}]",
-                value=f"Clase: {c['clase']} • Rol: {c['rol']}",
+                name=f"{c['name']} [{c['rank']}]",
+                value=f"Clase: {c['class']} • Rol: {c['role']}",
                 inline=False
             )
         return embed
@@ -483,4 +483,4 @@ threading.Thread(target=run_bot).start()
 
 # === Ejecutar app Flask ===
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))) 
