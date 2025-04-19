@@ -29,7 +29,7 @@ def color_por_rango(rango):
 
 def generar_embed_carta(carta):
     embed = discord.Embed(
-        color=color_por_rango(carta["rango"]),
+        color=color_por_rango(carta["rank"]),
         description=f"""
 **📝 Name:** {carta['name']}
 **🎖️ Rank:** {carta['rank']}
@@ -66,7 +66,6 @@ async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
-
     bot.add_view(CatalogView([]))
 
 @bot.tree.command(name="start", description="Start your adventure!")
@@ -421,7 +420,7 @@ class CatalogView(ui.View):
 
         self.select.options.clear()
         for c in page:
-            self.select.append_option(discord.SelectOption(label=f"{c['name']} [{c['rank']}]", value=c['id']))
+            self.select.append_option(discord.SelectOption(label=f"{c['name']} [{c['rank']}]",value=c['id']))
 
         self.prev_button.disabled = self.current == 0
         max_page = (len(self.cartas) - 1) // self.per_page
@@ -453,7 +452,7 @@ class CatalogView(ui.View):
         page = self.cartas[start:end]
 
         embed = discord.Embed(
-            title=f"📚 Catálogo (Página {self.current + 1}/{(len(self.cartas) - 1) // self.per_page + 1})",
+            title=f"📚 Catálogo (Página {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
             color=discord.Color.blurple()
         )
         for c in page:
