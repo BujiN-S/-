@@ -400,12 +400,10 @@ class CatalogView(ui.View):
         self.per_page = per_page
         self.current = 0
 
-        # Selector para detalles
         self.select = ui.Select(placeholder="Selecciona una carta para ver detalles", options=[])
         self.select.callback = self.on_select
         self.add_item(self.select)
 
-        # Botones de navegación
         self.prev_button = ui.Button(label="⬅️ Atrás", style=ButtonStyle.secondary)
         self.next_button = ui.Button(label="➡️ Siguiente", style=ButtonStyle.secondary)
         self.prev_button.callback = self.on_prev
@@ -416,39 +414,39 @@ class CatalogView(ui.View):
         self._update_view()
 
     def _update_view(self):
-        # Actualiza opciones del Select y habilita/deshabilita botones
         start = self.current * self.per_page
         end = start + self.per_page
         page = self.cartas[start:end]
 
-        # Actualizar select options
         self.select.options = [
             discord.SelectOption(label=f"{c['name']} [{c['rank']}]", value=c['id'])
             for c in page
         ]
-        # Estado de botones
         self.prev_button.disabled = self.current == 0
         max_page = (len(self.cartas) - 1) // self.per_page
         self.next_button.disabled = self.current >= max_page
 
     async def on_prev(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         self.current -= 1
         self._update_view()
-        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+        await interaction.followup.edit_message(message_id=interaction.message.id, embed=self.get_embed(), view=self)
 
     async def on_next(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         self.current += 1
         self._update_view()
-        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+        await interaction.followup.edit_message(message_id=interaction.message.id, embed=self.get_embed(), view=self)
 
     async def on_select(self, interaction: discord.Interaction):
-    carta_id = self.select.values[0]
-    carta = next((c for c in self.cartas if c['id'] == carta_id), None)
-    if carta:
-        embed = generar_embed_carta(carta)
-        await interaction.followup.send(embed=embed)
-    else:
-        await interaction.followup.send("❌ No se encontró la carta.", ephemeral=True)
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        carta_id = self.select.values[0]
+        carta = next((c for c in self.cartas if c['id'] == carta_id), None)
+        if carta:
+            embed = generar_embed_carta(carta)
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send("❌ No se encontró la carta.", ephemeral=True)
 
     def get_embed(self):
         start = self.current * self.per_page
