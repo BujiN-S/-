@@ -479,6 +479,10 @@ async def catalog(interaction: discord.Interaction):
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
 async def buscarcarta(interaction: discord.Interaction, name: str = None, class_: str = None, role: str = None, rank: str = None):
+    if not any([name, class_, role, rank]):
+        await interaction.response.send_message("❗ Debes especificar al menos un criterio para buscar.", ephemeral=True)
+        return
+
     filtros = {}
     if name:
         filtros["name"] = {"$regex": name, "$options": "i"}
