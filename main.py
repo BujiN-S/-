@@ -38,7 +38,7 @@ def generar_embed_carta(carta):
 
 **📊 Stats:**  
 🗡️ ATK: {carta['stats']['atk']} | 🛡️ DEF: {carta['stats']['def']} | ⚡ VEL: {carta['stats']['vel']} | ❤️ HP: {carta['stats']['hp']} | 🧠 INT: {carta['stats']['int']}
-**🔥 Poder Total:** {carta['overall']}
+**🔥 Overall:** {carta['overall']}
 """.strip()
     )
     embed.set_image(url=carta["image"])
