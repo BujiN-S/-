@@ -438,14 +438,13 @@ class CatalogView(ui.View):
         await interaction.followup.edit_message(message_id=interaction.message.id, embed=self.get_embed(), view=self)
 
     async def on_select(self, interaction: discord.Interaction):
-        await interaction.response.defer(thinking=True, ephemeral=True)
         carta_id = self.select.values[0]
         carta = next((c for c in self.cartas if c['id'] == carta_id), None)
         if carta:
             embed = generar_embed_carta(carta)
-            await interaction.followup.send(embed=embed)
+            await interaction.response.send_message(embed=embed)
         else:
-            await interaction.followup.send("❌ No se encontró la carta.", ephemeral=True)
+            await interaction.response.send_message("❌ No se encontró la carta.", ephemeral=True)
 
     def get_embed(self):
         start = self.current * self.per_page
