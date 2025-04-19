@@ -8,6 +8,7 @@ from flask import Flask
 from db.database import db_connect, verify_user, register_user
 from datetime import datetime, timedelta
 import random
+from discord import ui, ButtonStyle
 
 # Conexión a MongoDB y colecciones
 db_collections = db_connect()
@@ -391,6 +392,88 @@ async def dar(interaction: discord.Interaction, usuario: discord.User, cantidad:
     embed.set_footer(text="Gracias por compartir tus riquezas 💰")
 
     await interaction.response.send_message(embed=embed)
+
+class CatalogView(ui.View):
+    def __init__(self, cartas, per_page: int = 10):
+        super().__init__(timeout=None)
+        self.cartas = cartas
+        self.per_page = per_page
+        self.current = 0
+
+        # Selector para detalles
+        self.select = ui.Select(placeholder="Selecciona una carta para ver detalles", options=[])
+        self.select.callback = self.on_select
+        self.add_item(self.select)
+
+        # Botones de navegación
+        self.prev_button = ui.Button(label="⬅️ Atrás", style=ButtonStyle.secondary)
+        self.next_button = ui.Button(label="➡️ Siguiente", style=ButtonStyle.secondary)
+        self.prev_button.callback = self.on_prev
+        self.next_button.callback = self.on_next
+        self.add_item(self.prev_button)
+        self.add_item(self.next_button)
+
+        self._update_view()
+
+    def _update_view(self):
+        # Actualiza opciones del Select y habilita/deshabilita botones
+        start = self.current * self.per_page
+        end = start + self.per_page
+        page = self.cartas[start:end]
+
+        # Actualizar select options
+        self.select.options = [
+            discord.SelectOption(label=f"{c['nombre']} [{c['rango']}]", value=c['id'])
+            for c in page
+        ]
+        # Estado de botones
+        self.prev_button.disabled = self.current == 0
+        max_page = (len(self.cartas) - 1) // self.per_page
+        self.next_button.disabled = self.current >= max_page
+
+    async def on_prev(self, interaction: discord.Interaction):
+        self.current -= 1
+        self._update_view()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+
+    async def on_next(self, interaction: discord.Interaction):
+        self.current += 1
+        self._update_view()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+
+    async def on_select(self, interaction: discord.Interaction):
+        carta_id = self.select.values[0]
+        carta = next((c for c in self.cartas if c['id'] == carta_id), None)
+        if carta:
+            embed = generar_embed_carta(carta)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    def get_embed(self):
+        start = self.current * self.per_page
+        end = start + self.per_page
+        page = self.cartas[start:end]
+
+        embed = discord.Embed(
+            title=f"📚 Catálogo (Página {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
+            color=discord.Color.blurple()
+        )
+        for c in page:
+            embed.add_field(
+                name=f"{c['nombre']} [{c['rango']}]",
+                value=f"Clase: {c['clase']} • Rol: {c['rol']}",
+                inline=False
+            )
+        return embed
+
+@bot.tree.command(name="catalog", description="Muestra todas las cartas con navegación y opción de ver detalles.")
+async def catalog(interaction: discord.Interaction):
+    all_cards = list(core_cards.find())
+    if not all_cards:
+        await interaction.response.send_message("❌ No hay cartas en la base de datos.", ephemeral=True)
+        return
+
+    view = CatalogView(all_cards, per_page=10)
+    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
 
 # === Ejecutar bot en segundo plano ===
 def run_bot():
