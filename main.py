@@ -207,7 +207,7 @@ async def recompensa(interaction: discord.Interaction):
     # Probabilidades de cartas
     probabilidades = {"Z": 0.001, "S": 0.01, "A": 0.07, "B": 0.2, "C": 0.25, "D": 0.12, "E": 0.15}
     rango = elegir_rango(probabilidades)
-    cartas = list(core_cards.find({"rank": rango}))
+    cartas = list(core_cards.find({"rank": rank}))
     carta = random.choice(cartas) if cartas else None
 
     if carta:
@@ -215,7 +215,7 @@ async def recompensa(interaction: discord.Interaction):
         agregar_carta_usuario(user_id, carta)
         embed = discord.Embed(
             title=carta["name"],
-            description=f"Rango: {carta['rank']} • Clase: {carta['class']} • Rol: {carta['role']}",
+            description=f"Rank: {carta['rank']} • Class: {carta['class']} • Role: {carta['role']}",
             color=color_por_rango(carta["rank"])
         )
         embed.set_image(url=carta["image_url"])
@@ -270,7 +270,7 @@ async def cartarecompensa(interaction: discord.Interaction):
         agregar_carta_usuario(user_id, carta)
         embed = discord.Embed(
             title=carta["name"],
-            description=f"Rango: {carta['rank']} • Clase: {carta['class']} • Rol: {carta['role']}",
+            description=f"Rank: {carta['rank']} • Class: {carta['class']} • Role: {carta['role']}",
             color=color_por_rango(carta["rank"])
         )
         embed.set_image(url=carta["image_url"])
