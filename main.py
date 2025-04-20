@@ -523,37 +523,15 @@ class CatalogView(ui.View):
             )
         return embed
 
-@bot.tree.command(name="collection", description="Muestra tus cartas obtenidas.")
-async def collection(interaction: discord.Interaction):
-    user_id = str(interaction.user.id)
+@bot.tree.command(name="catalog", description="Muestra todas las cartas con navegación y opción de ver detalles.")
+async def catalog(interaction: discord.Interaction):
+    all_cards = list(core_cards.find())
+    if not all_cards:
+        await interaction.response.send_message("❌ No hay cartas en la base de datos.", ephemeral=True)
+        return
 
-    # 1) Traer la lista de core_ids
-    data = user_cards.find_one({"discordID": user_id})
-    if not data or not data.get("cards"):
-        return await interaction.response.send_message(
-            "❌ No tienes cartas en tu colección.",
-            ephemeral=True
-        )
-
-    core_ids = [c["core_id"] for c in data["cards"]]
-
-    # 2) Cargar los documentos completos de core_cards
-    owned_cards = list(core_cards.find({"id": {"$in": core_ids}}))
-    if not owned_cards:
-        return await interaction.response.send_message(
-            "❌ Algo fue mal: no encontré tus cartas en core_cards.",
-            ephemeral=True
-        )
-
-    # 3) Crear la vista con paginación (5 por página, por ejemplo)
-    view = CatalogView(owned_cards, per_page=10)
-
-    # 4) Enviar embed + view
-    await interaction.response.send_message(
-        embed=view.get_embed(),
-        view=view,
-        ephemeral=True
-    )
+    view = CatalogView(all_cards, per_page=10)
+    await interaction.response.send_message(embed=view.get_embed(), view=view)
 
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
@@ -588,83 +566,34 @@ async def buscarcarta(interaction: discord.Interaction, name: str = None, class_
 @bot.tree.command(name="collection", description="Muestra tus cartas obtenidas.")
 async def collection(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    user_cards = db_collections["user_cards"]
 
-    # Obtener los datos del usuario
-    user_cards_data = user_cards.find_one({"discordID": user_id})
-
-    if not user_cards_data or not user_cards_data.get("cards"):
-        await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
-        return
-
-    cards = user_cards_data["cards"]
-
-    # Si hay muchas cartas, implementamos paginación
-    page_size = 5
-    total_pages = (len(cards) // page_size) + (1 if len(cards) % page_size > 0 else 0)
-
-    # Página actual por defecto
-    page = 1
-
-    # Generamos el embed inicial
-    embed = discord.Embed(
-        title=f"🔮 Tu colección de cartas ({len(cards)} total)",
-        description=f"Página {page}/{total_pages}",
-        color=discord.Color.blue()
-    )
-
-    # Mostramos las cartas de la página actual
-    start_index = (page - 1) * page_size
-    end_index = start_index + page_size
-    current_page_cards = cards[start_index:end_index]
-
-    for carta in current_page_cards:
-        embed.add_field(
-            name=carta["name"],
-            value=f"**Rango**: {carta['rank']}\n**Clase**: {carta['class']}\n**Rol**: {carta['role']}",
-            inline=False
+    # 1) Traer la lista de core_ids
+    data = user_cards.find_one({"discordID": user_id})
+    if not data or not data.get("cards"):
+        return await interaction.response.send_message(
+            "❌ No tienes cartas en tu colección.",
+            ephemeral=True
         )
-        embed.set_image(url=carta["image_url"])
 
-    # Enviar el embed con las cartas de la página
-    message = await interaction.response.send_message(embed=embed, ephemeral=True)
+    core_ids = [c["core_id"] for c in data["cards"]]
 
-    # Si hay más de una página, agregar botones para navegar
-    if total_pages > 1:
-        await message.add_reaction("⬅️")  # Botón de página anterior
-        await message.add_reaction("➡️")  # Botón de siguiente página
+    # 2) Cargar los documentos completos de core_cards
+    owned_cards = list(core_cards.find({"id": {"$in": core_ids}}))
+    if not owned_cards:
+        return await interaction.response.send_message(
+            "❌ Algo fue mal: no encontré tus cartas en core_cards.",
+            ephemeral=True
+        )
 
-        # Esperar reacciones y manejar la paginación
-        def check(reaction, user):
-            return user == interaction.user and str(reaction.emoji) in ["⬅️", "➡️"]
+    # 3) Crear la vista con paginación (5 por página, por ejemplo)
+    view = CatalogView(owned_cards, per_page=5)
 
-        try:
-            reaction, user = await bot.wait_for("reaction_add", check=check, timeout=60.0)
-            
-            if str(reaction.emoji) == "➡️" and page < total_pages:
-                page += 1
-            elif str(reaction.emoji) == "⬅️" and page > 1:
-                page -= 1
-
-            # Rehacer el embed con la nueva página
-            embed.description = f"Página {page}/{total_pages}"
-
-            current_page_cards = cards[(page - 1) * page_size: page * page_size]
-            embed.clear_fields()
-
-            for carta in current_page_cards:
-                embed.add_field(
-                    name=carta["name"],
-                    value=f"**Rango**: {carta['rank']}\n**Clase**: {carta['class']}\n**Rol**: {carta['role']}",
-                    inline=False
-                )
-                embed.set_image(url=carta["image_url"])
-
-            # Actualizar el mensaje con la nueva página de cartas
-            await message.edit(embed=embed)
-            await message.remove_reaction(reaction, user)
-        except asyncio.TimeoutError:
-            await message.clear_reactions()
+    # 4) Enviar embed + view
+    await interaction.response.send_message(
+        embed=view.get_embed(),
+        view=view,
+        ephemeral=True
+    )
 
 # === Ejecutar bot en segundo plano ===
 def run_bot():
