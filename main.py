@@ -81,6 +81,27 @@ def agregar_carta_usuario(user_id, carta):
         {"$push": {"cards": nueva_carta}}
     )
 
+def elegir_rango(probabilidades):
+    """Elige un rango según probabilidades dadas en un dict rank->peso"""
+    return random.choices(
+        population=list(probabilidades.keys()),
+        weights=list(probabilidades.values()),
+        k=1
+    )[0]
+
+def generar_recompensa_monedas():
+    prob = random.random()
+    if prob < 0.4:
+        return random.randint(0, 300)
+    elif prob < 0.7:
+        return random.randint(300, 800)
+    elif prob < 0.9:
+        return random.randint(800, 1500)
+    elif prob < 0.98:
+        return random.randint(1500, 2500)
+    else:
+        return random.randint(2500, 4000)
+
 # === Configuración Flask ===
 app = Flask(__name__)
 
@@ -149,187 +170,114 @@ async def perfil(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-# Función para obtener una recompensa de monedas
-def generar_recompensa_monedas():
-    prob = random.random()
-    if prob < 0.4:
-        return random.randint(0, 300)
-    elif prob < 0.7:
-        return random.randint(300, 800)
-    elif prob < 0.9:
-        return random.randint(800, 1500)
-    elif prob < 0.98:
-        return random.randint(1500, 2500)
-    else:
-        return random.randint(2500, 4000)
-
-# Función genérica para elegir un rango basado en probabilidades
-def elegir_rango(probabilidades):
-    r = random.random()
-    acumulado = 0
-    for rango, prob in sorted(probabilidades.items(), key=lambda x: -x[1]):
-        acumulado += prob
-        if r <= acumulado:
-            return rango
-    return "E"
-
 # Comando para reclamar la recompensa diaria
 @bot.tree.command(name="recompensa", description="Reclama tu recompensa diaria.")
 async def recompensa(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    users = db_collections["users"]
-    core_cards = db_collections["core_cards"]
-    user_cards = db_collections["user_cards"]
-
-    # Verificar si el usuario está registrado
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
         await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
         return
 
-    # Generar recompensa en monedas
-    recompensa_monedas = generar_recompensa_monedas()  # Asumiendo que esta función ya está definida
+    # Generar y asignar monedas
+    recompensa_monedas = generar_recompensa_monedas()
     nueva_cantidad = user_data.get("monedas", 0) + recompensa_monedas
 
-    # Obtener la hora actual
+    # Verificar cooldown de 24 horas
     now = datetime.utcnow()
-    last_time = user_data.get("last_daily")  # Cambié 'hourly' por 'last_daily' para que tenga sentido
-
+    last_time = user_data.get("last_daily")
     if last_time:
         elapsed = now - last_time
-        if elapsed.total_seconds() < 3600:  # 1 hora de cooldown
-            restante = timedelta(seconds=3600) - elapsed
+        if elapsed.total_seconds() < 86400:  # 24h
+            restante = timedelta(seconds=86400) - elapsed
             minutos = int(restante.total_seconds() // 60)
             segundos = int(restante.total_seconds() % 60)
             await interaction.response.send_message(
-                f"⏳ Debes esperar **{minutos}m {segundos}s** para volver a reclamar tu carta.",
+                f"⏳ Debes esperar **{minutos}m {segundos}s** para reclamar de nuevo.",
                 ephemeral=True
             )
             return
 
-    # Actualizamos las monedas y la hora de la última recompensa diaria
+    # Actualizar en BD
     users.update_one(
         {"discordID": user_id},
-        {
-            "$set": {
-                "monedas": nueva_cantidad,
-                "last_daily": now  # Actualizamos la hora de la última recompensa diaria
-            }
-        }
+        {"$set": {"monedas": nueva_cantidad, "last_daily": now}}
     )
 
-    # Probabilidad de obtener cartas
-    probabilidades = {
-        "Z": 0.001,  # No tocamos Z
-        "S": 0.01,   # No tocamos S
-        "A": 0.07,   # Aumentamos A
-        "B": 0.2,    # Aumentamos B
-        "C": 0.25,   # Aumentamos C
-        "D": 0.12,   # Reducimos D
-        "E": 0.15    # Reducimos E
-    }
-
-    def elegir_rango(probabilidades):
-        r = random.random()  # Generar un número aleatorio entre 0 y 1
-        acumulado = 0
-        for rango, prob in sorted(probabilidades.items(), key=lambda x: -x[1]):
-            acumulado += prob
-            if r <= acumulado:
-                return rango
-        return "E"
-
+    # Probabilidades de cartas
+    probabilidades = {"Z": 0.001, "S": 0.01, "A": 0.07, "B": 0.2, "C": 0.25, "D": 0.12, "E": 0.15}
     rango = elegir_rango(probabilidades)
-    cartas = list(core_cards.find({"rank": rango}))  # Buscar cartas en el rango elegido
-    carta = random.choice(cartas) if cartas else None  # Elegir una carta aleatoria si existe alguna
+    cartas = list(core_cards.find({"rank": rango}))
+    carta = random.choice(cartas) if cartas else None
 
     if carta:
-        # Agregar la carta al perfil del usuario
-        agregar_carta_usuario(user_cards, user_id, carta)
-
-        # Crear un embed para mostrar la carta obtenida
+        # Agregar carta al usuario
+        agregar_carta_usuario(user_id, carta)
         embed = discord.Embed(
             title=carta["name"],
-            description=f"Rango: {carta['rank']}\nClase: {carta['class']}\nRol: {carta['role']}",
-            color=discord.Color.blue()
+            description=f"Rango: {carta['rank']} • Clase: {carta['class']} • Rol: {carta['role']}",
+            color=color_por_rango(carta["rank"])
         )
         embed.set_image(url=carta["image_url"])
-
         await interaction.response.send_message(
-            f"🎁 Has recibido **{recompensa_monedas} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**.",
+            f"🎁 Has recibido **{recompensa_monedas} monedas**. Ahora tienes **{nueva_cantidad} monedas**.",
             embed=embed,
             ephemeral=True
         )
     else:
-        # Si no se encuentra una carta, solo mostrar las monedas
         await interaction.response.send_message(
-            f"🎁 Has recibido **{recompensa_monedas} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**.\n⚠️ Pero no se encontró una carta de rango {rango}.",
+            f"🎁 Has recibido **{recompensa_monedas} monedas**. Ahora tienes **{nueva_cantidad} monedas**.\n⚠️ No se encontró carta de rango {rango}.",
             ephemeral=True
         )
         
-@bot.tree.command(name="cartarecompensa", description="Recibe una carta aleatoria con baja probabilidad de obtener una rara (1h de cooldown).")
-async def carta_recompensa(interaction: discord.Interaction):
+# Comando para reclamar carta bonus (cada hora)
+@bot.tree.command(name="cartarecompensa", description="Recibe una carta aleatoria con baja probabilidad de obtener una rara (1h cooldown).")
+async def cartarecompensa(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    users = db_collections["users"]
-    core_cards = db_collections["core_cards"]
-    user_cards = db_collections["user_cards"]
-
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
         await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
         return
 
-    # Verificamos si el usuario tiene cooldown
+    # Cooldown de 1 hora
     now = datetime.utcnow()
-    last_time = user_data.get("hourly")  # Usamos 'hourly' como en tu código original
-
+    last_time = user_data.get("last_hourly")
     if last_time:
         elapsed = now - last_time
-        if elapsed.total_seconds() < 3600:  # 1 hora de cooldown
+        if elapsed.total_seconds() < 3600:
             restante = timedelta(seconds=3600) - elapsed
             minutos = int(restante.total_seconds() // 60)
             segundos = int(restante.total_seconds() % 60)
             await interaction.response.send_message(
-                f"⏳ Debes esperar **{minutos}m {segundos}s** para volver a reclamar tu carta.",
+                f"⏳ Debes esperar **{minutos}m {segundos}s** para volver a reclamar.",
                 ephemeral=True
             )
             return
 
-    # Probabilidad de obtener una carta de cada rango
-    probabilidades = {
-        "Z": 0.0001,
-        "S": 0.0049,
-        "A": 0.05,
-        "B": 0.17,
-        "C": 0.225,
-        "D": 0.25,
-        "E": 0.30
-    }
-
-    rango = random.choices(list(probabilidades.keys()), list(probabilidades.values()))[0]
+    # Probabilidades de cartas
+    probabilidades = {"Z": 0.0001, "S": 0.0049, "A": 0.05, "B": 0.17, "C": 0.225, "D": 0.25, "E": 0.3}
+    rango = elegir_rango(probabilidades)
     cartas = list(core_cards.find({"rank": rango}))
     carta = random.choice(cartas) if cartas else None
 
-    # Actualizamos la hora del último reclamo
+    # Actualizar tiempo en BD
     users.update_one(
         {"discordID": user_id},
-        {"$set": {"hourly": now}}  # Mantenemos el campo 'hourly' para el cooldown
+        {"$set": {"last_hourly": now}}
     )
 
     if carta:
-        # Aquí agregamos la carta al perfil del usuario con un ID secuencial
         agregar_carta_usuario(user_id, carta)
-
         embed = discord.Embed(
             title=carta["name"],
-            description=f"Rango: {carta['rank']}\nClase: {carta['class']}\nRol: {carta['role']}",
-            color=discord.Color.blue()
+            description=f"Rango: {carta['rank']} • Clase: {carta['class']} • Rol: {carta['role']}",
+            color=color_por_rango(carta["rank"])
         )
         embed.set_image(url=carta["image_url"])
-
         await interaction.response.send_message(embed=embed, ephemeral=True)
     else:
         await interaction.response.send_message(
-            f"⚠️ No se encontró ninguna carta de rango **{rango}** en la base de datos.",
+            f"⚠️ No se encontró carta de rango {rango}.",
             ephemeral=True
         )
         
