@@ -46,24 +46,29 @@ def generar_embed_carta(carta, mostrar_footer=True):
     return embed
 
 def agregar_carta_usuario(user_id, carta):
-    # 1) Guardar en user_cards
-    user_data = user_cards.find_one({"discordID": user_id})
-    if not user_data:
+    # 1) Insertar en user_cards
+    data = user_cards.find_one({"discordID": user_id})
+    if not data:
         user_cards.insert_one({"discordID": user_id, "cards": []})
-        user_data = user_cards.find_one({"discordID": user_id})
-    card_id = len(user_data["cards"]) + 1
+        data = user_cards.find_one({"discordID": user_id})
+    card_id = len(data["cards"]) + 1
+
     nueva = {
-        "card_id": card_id,
-        "name": carta["name"],
-        "class": carta["class"],
-        "role": carta["role"],
-        "rank": carta["rank"],
-        "image_url": carta.get("image", ""),
+        "card_id":    card_id,
+        "core_id":    carta["id"],         # ← guardamos el ID de la carta base
+        "name":       carta["name"],
+        "class":      carta["class"],
+        "role":       carta["role"],
+        "rank":       carta["rank"],
+        "image_url":  carta.get("image", ""),
         "obtained_at": datetime.utcnow().isoformat()
     }
-    user_cards.update_one({"discordID": user_id}, {"$push": {"cards": nueva}})
-    
-    # 2) Incrementar el card_count en la colección de users
+    user_cards.update_one(
+        {"discordID": user_id},
+        {"$push": {"cards": nueva}}
+    )
+
+    # 2) Incrementar el contador
     users.update_one(
         {"discordID": user_id},
         {"$inc": {"card_count": 1}},
@@ -518,15 +523,37 @@ class CatalogView(ui.View):
             )
         return embed
 
-@bot.tree.command(name="catalog", description="Muestra todas las cartas con navegación y opción de ver detalles.")
-async def catalog(interaction: discord.Interaction):
-    all_cards = list(core_cards.find())
-    if not all_cards:
-        await interaction.response.send_message("❌ No hay cartas en la base de datos.", ephemeral=True)
-        return
+@bot.tree.command(name="collection", description="Muestra tus cartas obtenidas.")
+async def collection(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
 
-    view = CatalogView(all_cards, per_page=10)
-    await interaction.response.send_message(embed=view.get_embed(), view=view)
+    # 1) Traer la lista de core_ids
+    data = user_cards.find_one({"discordID": user_id})
+    if not data or not data.get("cards"):
+        return await interaction.response.send_message(
+            "❌ No tienes cartas en tu colección.",
+            ephemeral=True
+        )
+
+    core_ids = [c["core_id"] for c in data["cards"]]
+
+    # 2) Cargar los documentos completos de core_cards
+    owned_cards = list(core_cards.find({"id": {"$in": core_ids}}))
+    if not owned_cards:
+        return await interaction.response.send_message(
+            "❌ Algo fue mal: no encontré tus cartas en core_cards.",
+            ephemeral=True
+        )
+
+    # 3) Crear la vista con paginación (5 por página, por ejemplo)
+    view = CatalogView(owned_cards, per_page=10)
+
+    # 4) Enviar embed + view
+    await interaction.response.send_message(
+        embed=view.get_embed(),
+        view=view,
+        ephemeral=True
+    )
 
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
