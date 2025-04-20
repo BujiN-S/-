@@ -46,29 +46,28 @@ def generar_embed_carta(carta, mostrar_footer=True):
     return embed
 
 def agregar_carta_usuario(user_id, carta):
-    # 1) Insertar en user_cards
-    data = user_cards.find_one({"discordID": user_id})
-    if not data:
+    user_data = user_cards.find_one({"discordID": user_id})
+    if not user_data:
         user_cards.insert_one({"discordID": user_id, "cards": []})
-        data = user_cards.find_one({"discordID": user_id})
-    card_id = len(data["cards"]) + 1
+        user_data = user_cards.find_one({"discordID": user_id})
 
+    card_id = len(user_data["cards"]) + 1
     nueva = {
-        "card_id":    card_id,
-        "core_id":    carta["id"],         # ← guardamos el ID de la carta base
-        "name":       carta["name"],
-        "class":      carta["class"],
-        "role":       carta["role"],
-        "rank":       carta["rank"],
-        "image_url":  carta.get("image", ""),
+        "card_id": card_id,
+        "core_id": carta["id"],  # <- ¡clave!
+        "name": carta["name"],
+        "class": carta["class"],
+        "role": carta["role"],
+        "rank": carta["rank"],
+        "image_url": carta.get("image", ""),
         "obtained_at": datetime.utcnow().isoformat()
     }
+
     user_cards.update_one(
         {"discordID": user_id},
         {"$push": {"cards": nueva}}
     )
 
-    # 2) Incrementar el contador
     users.update_one(
         {"discordID": user_id},
         {"$inc": {"card_count": 1}},
@@ -567,7 +566,6 @@ async def buscarcarta(interaction: discord.Interaction, name: str = None, class_
 async def collection(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
 
-    # 1) Traer la lista de core_ids
     data = user_cards.find_one({"discordID": user_id})
     if not data or not data.get("cards"):
         return await interaction.response.send_message(
@@ -575,20 +573,26 @@ async def collection(interaction: discord.Interaction):
             ephemeral=True
         )
 
-    core_ids = [c["core_id"] for c in data["cards"]]
+    # Obtener todos los core_ids de las cartas del usuario
+    core_ids = [c["core_id"] for c in data["cards"] if "core_id" in c]
 
-    # 2) Cargar los documentos completos de core_cards
-    owned_cards = list(core_cards.find({"id": {"$in": core_ids}}))
-    if not owned_cards:
+    if not core_ids:
         return await interaction.response.send_message(
-            "❌ Algo fue mal: no encontré tus cartas en core_cards.",
+            "⚠️ Tus cartas no tienen core_id. Usa `/recompensa` o `/cartarecompensa` para obtener nuevas cartas.",
             ephemeral=True
         )
 
-    # 3) Crear la vista con paginación (5 por página, por ejemplo)
-    view = CatalogView(owned_cards, per_page=5)
+    # Buscar en core_cards solo las cartas que tenés
+    owned_cards = list(core_cards.find({"id": {"$in": core_ids}}))
 
-    # 4) Enviar embed + view
+    if not owned_cards:
+        return await interaction.response.send_message(
+            "❌ No se encontraron tus cartas en la base de datos.",
+            ephemeral=True
+        )
+
+    # Mostrar en formato catálogo
+    view = CatalogView(owned_cards, per_page=5)
     await interaction.response.send_message(
         embed=view.get_embed(),
         view=view,
