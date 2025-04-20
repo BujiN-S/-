@@ -181,15 +181,17 @@ async def recompensa(interaction: discord.Interaction):
     core_cards = db_collections["core_cards"]
     user_cards = db_collections["user_cards"]
 
+    # Verificar si el usuario está registrado
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
         await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
         return
 
-    # Generamos la recompensa en monedas
-    recompensa_monedas = generar_recompensa_monedas()
+    # Generar recompensa en monedas
+    recompensa_monedas = generar_recompensa_monedas()  # Asumiendo que esta función ya está definida
     nueva_cantidad = user_data.get("monedas", 0) + recompensa_monedas
 
+    # Actualizar las monedas del usuario en la base de datos
     users.update_one(
         {"discordID": user_id},
         {
@@ -199,7 +201,7 @@ async def recompensa(interaction: discord.Interaction):
         }
     )
 
-    # Probabilidad de la carta
+    # Probabilidad de obtener cartas
     probabilidades = {
         "Z": 0.001,
         "S": 0.01,
@@ -211,7 +213,7 @@ async def recompensa(interaction: discord.Interaction):
     }
 
     def elegir_rango(probabilidades):
-        r = random.random()
+        r = random.random()  # Generar un número aleatorio entre 0 y 1
         acumulado = 0
         for rango, prob in sorted(probabilidades.items(), key=lambda x: -x[1]):
             acumulado += prob
@@ -220,13 +222,14 @@ async def recompensa(interaction: discord.Interaction):
         return "E"
 
     rango = elegir_rango(probabilidades)
-    cartas = list(core_cards.find({"rank": rango}))
-    carta = random.choice(cartas) if cartas else None
+    cartas = list(core_cards.find({"rank": rango}))  # Buscar cartas en el rango elegido
+    carta = random.choice(cartas) if cartas else None  # Elegir una carta aleatoria si existe alguna
 
     if carta:
-        # Aquí agregamos la carta al perfil del usuario con un ID secuencial basado en su contador
-        agregar_carta_usuario(user_id, carta)
+        # Agregar la carta al perfil del usuario
+        agregar_carta_usuario(user_cards, user_id, carta)
 
+        # Crear un embed para mostrar la carta obtenida
         embed = discord.Embed(
             title=carta["name"],
             description=f"Rango: {carta['rank']}\nClase: {carta['class']}\nRol: {carta['role']}",
@@ -240,11 +243,12 @@ async def recompensa(interaction: discord.Interaction):
             ephemeral=True
         )
     else:
+        # Si no se encuentra una carta, solo mostrar las monedas
         await interaction.response.send_message(
             f"🎁 Has recibido **{recompensa_monedas} monedas**.\n💰 Ahora tienes **{nueva_cantidad} monedas**.\n⚠️ Pero no se encontró una carta de rango {rango}.",
             ephemeral=True
         )
-
+        
 # Comando para recibir una carta aleatoria
 @bot.tree.command(name="cartarecompensa", description="Recibe una carta aleatoria con baja probabilidad de obtener una rara (1h de cooldown).")
 async def carta_recompensa(interaction: discord.Interaction):
