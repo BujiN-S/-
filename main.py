@@ -191,10 +191,9 @@ async def recompensa(interaction: discord.Interaction):
     recompensa_monedas = generar_recompensa_monedas()  # Asumiendo que esta función ya está definida
     nueva_cantidad = user_data.get("monedas", 0) + recompensa_monedas
 
-    # Actualizar las monedas del usuario en la base de datos
-
+    # Obtener la hora actual
     now = datetime.utcnow()
-    last_time = user_data.get("hourly")
+    last_time = user_data.get("last_daily")  # Cambié 'hourly' por 'last_daily' para que tenga sentido
 
     if last_time:
         elapsed = now - last_time
@@ -208,28 +207,26 @@ async def recompensa(interaction: discord.Interaction):
             )
             return
 
+    # Actualizamos las monedas y la hora de la última recompensa diaria
     users.update_one(
-    {"discordID": user_id},
-    {
-        "$set": {
-            "monedas": nueva_cantidad,
-            "last_daily": now
+        {"discordID": user_id},
+        {
+            "$set": {
+                "monedas": nueva_cantidad,
+                "last_daily": now  # Actualizamos la hora de la última recompensa diaria
+            }
         }
-    }
-)
+    )
 
     # Probabilidad de obtener cartas
     probabilidades = {
-        
-    "Z": 0.001,  # No tocamos Z
-    "S": 0.01,   # No tocamos S
-    "A": 0.07,   # Aumentamos A
-    "B": 0.2,   # Aumentamos B
-    "C": 0.25,   # Aumentamos C
-    "D": 0.12,   # Reducimos D
-    "E": 0.15     # Reducimos E
-
-
+        "Z": 0.001,  # No tocamos Z
+        "S": 0.01,   # No tocamos S
+        "A": 0.07,   # Aumentamos A
+        "B": 0.2,    # Aumentamos B
+        "C": 0.25,   # Aumentamos C
+        "D": 0.12,   # Reducimos D
+        "E": 0.15    # Reducimos E
     }
 
     def elegir_rango(probabilidades):
@@ -269,7 +266,6 @@ async def recompensa(interaction: discord.Interaction):
             ephemeral=True
         )
         
-# Comando para recibir una carta aleatoria
 @bot.tree.command(name="cartarecompensa", description="Recibe una carta aleatoria con baja probabilidad de obtener una rara (1h de cooldown).")
 async def carta_recompensa(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
@@ -284,7 +280,7 @@ async def carta_recompensa(interaction: discord.Interaction):
 
     # Verificamos si el usuario tiene cooldown
     now = datetime.utcnow()
-    last_time = user_data.get("hourly")
+    last_time = user_data.get("hourly")  # Usamos 'hourly' como en tu código original
 
     if last_time:
         elapsed = now - last_time
@@ -316,7 +312,7 @@ async def carta_recompensa(interaction: discord.Interaction):
     # Actualizamos la hora del último reclamo
     users.update_one(
         {"discordID": user_id},
-        {"$set": {"hourly": now}}
+        {"$set": {"hourly": now}}  # Mantenemos el campo 'hourly' para el cooldown
     )
 
     if carta:
