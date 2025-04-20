@@ -95,23 +95,23 @@ DAILY_CD = timedelta(hours=24)
 HOURLY_CD = timedelta(hours=1)
 
 DAILY_PROBS = {
-    "Z": 0.001,
-    "S": 0.01,
-    "A": 0.07,
-    "B": 0.15,
-    "C": 0.21,
-    "D": 0.26,
-    "E": 0.29
+    "Z": 0.01,
+    "S": 0.07,
+    "A": 0.13,
+    "B": 0.22,
+    "C": 0.25,
+    "D": 0.17,
+    "E": 0.15
 }
 
 HOURLY_PROBS = {
     "Z": 0.001,
     "S": 0.039,
     "A": 0.06,
-    "B": 0.15,
-    "C": 0.20,
+    "B": 0.17,
+    "C": 0.23,
     "D": 0.25,
-    "E": 0.30
+    "E": 0.25
 }
 
 def elegir_rank_threshold(probs: dict[str, float]) -> str:
@@ -254,38 +254,57 @@ async def cartarecompensa(interaction: discord.Interaction):
     user = users.find_one({"discordID": user_id}) or {}
     now = datetime.utcnow()
 
-    # 1) Verificar cooldown
+    # 1) Chequear cooldown
     last = user.get("last_hourly")
     if last and (now - last) < HOURLY_CD:
         rem = HOURLY_CD - (now - last)
         minutes = int(rem.total_seconds() // 60)
         return await interaction.response.send_message(
-            f"🕒 Aún debes esperar {minutes} minutos para tu carta bonus.", 
+            f"🕒 Aún debes esperar {minutes} minutos para tu carta bonus.",
             ephemeral=True
         )
 
-    # 2) Elegir carta
+    # 2) Selección de rango y carta
     rank = elegir_rank_threshold(HOURLY_PROBS)
     pool = list(core_cards.find({"rank": rank}))
     carta = random.choice(pool) if pool else None
     phrase = random.choice(PHRASES_HOURLY)
 
-    # 3) Enviar respuesta antes de actualizar BD
-    if carta:
-        agregar_carta_usuario(user_id, carta)
-        embed = generar_embed_carta(carta)  # usa carta["image"]
-        await interaction.response.send_message(
-            content=phrase,
-            embed=embed,
-            ephemeral=True
-        )
-    else:
-        await interaction.response.send_message(
-            f"⚠️ No encontré carta de rango `{rank}`.",
+    # 3) Intentar enviar respuesta y, si falla, informar
+    try:
+        if carta:
+            # a) Guardar carta en user_cards + card_count
+            agregar_carta_usuario(user_id, carta)
+
+            # b) Crear embed usando carta["image"]
+            embed = discord.Embed(
+                title=carta["name"],
+                description=f"Rank: {carta['rank']} • Class: {carta['class']} • Role: {carta['role']}",
+                color=color_por_rango(carta["rank"])
+            )
+            embed.set_image(url=carta["image"])
+            embed.set_footer(text=phrase)
+
+            # c) Enviar
+            await interaction.response.send_message(
+                embed=embed,
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"⚠️ No encontré carta de rango `{rank}`.",
+                ephemeral=True
+            )
+    except Exception as e:
+        # Log en consola para debugging
+        print(f"[ERROR] /cartarecompensa falló: {e}", flush=True)
+        # Informar al usuario
+        return await interaction.response.send_message(
+            "❌ Ocurrió un error al reclamar tu carta. Intenta de nuevo en un rato.",
             ephemeral=True
         )
 
-    # 4) Solo tras enviar, actualizo el cooldown
+    # 4) Sólo si todo salió bien, actualizar cooldown
     users.update_one(
         {"discordID": user_id},
         {"$set": {"last_hourly": now}},
