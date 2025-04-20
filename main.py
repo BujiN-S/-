@@ -81,7 +81,7 @@ def agregar_carta_usuario(user_id, carta):
         {"$push": {"cards": nueva_carta}}
     )
 
-def elegir_rango(probabilidades):
+def elegir_rank(probabilidades):
     """Elige un rango según probabilidades dadas en un dict rank->peso"""
     return random.choices(
         population=list(probabilidades.keys()),
@@ -206,7 +206,7 @@ async def recompensa(interaction: discord.Interaction):
 
     # Probabilidades de cartas
     probabilidades = {"Z": 0.001, "S": 0.01, "A": 0.07, "B": 0.2, "C": 0.25, "D": 0.12, "E": 0.15}
-    rango = elegir_rango(probabilidades)
+    rank = elegir_rank(probabilidades)
     cartas = list(core_cards.find({"rank": rank}))
     carta = random.choice(cartas) if cartas else None
 
@@ -226,7 +226,7 @@ async def recompensa(interaction: discord.Interaction):
         )
     else:
         await interaction.response.send_message(
-            f"🎁 Has recibido **{recompensa_monedas} monedas**. Ahora tienes **{nueva_cantidad} monedas**.\n⚠️ No se encontró carta de rango {rango}.",
+            f"🎁 Has recibido **{recompensa_monedas} monedas**. Ahora tienes **{nueva_cantidad} monedas**.\n⚠️ No se encontró carta de rango {rank}.",
             ephemeral=True
         )
         
@@ -256,7 +256,7 @@ async def cartarecompensa(interaction: discord.Interaction):
 
     # Probabilidades de cartas
     probabilidades = {"Z": 0.0001, "S": 0.0049, "A": 0.05, "B": 0.17, "C": 0.225, "D": 0.25, "E": 0.3}
-    rango = elegir_rango(probabilidades)
+    rango = elegir_rank(probabilidades)
     cartas = list(core_cards.find({"rank": rango}))
     carta = random.choice(cartas) if cartas else None
 
