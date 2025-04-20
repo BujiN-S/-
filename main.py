@@ -203,13 +203,16 @@ async def recompensa(interaction: discord.Interaction):
 
     # Probabilidad de obtener cartas
     probabilidades = {
-        "Z": 0.001,
-        "S": 0.01,
-        "A": 0.04,
-        "B": 0.1,
-        "C": 0.2,
-        "D": 0.25,
-        "E": 0.399
+        
+    "Z": 0.001,  # No tocamos Z
+    "S": 0.01,   # No tocamos S
+    "A": 0.07,   # Aumentamos A
+    "B": 0.12,   # Aumentamos B
+    "C": 0.25,   # Aumentamos C
+    "D": 0.15,   # Reducimos D
+    "E": 0.2     # Reducimos E
+
+
     }
 
     def elegir_rango(probabilidades):
