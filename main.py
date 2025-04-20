@@ -66,7 +66,7 @@ def agregar_carta_usuario(user_id, carta):
 
     # Preparar los datos de la carta para agregarla al usuario
     nueva_carta = {
-        "card_id": card_id,
+        "card_id": card_id,  # ID único para la carta
         "name": carta["name"],
         "class": carta["class"],
         "role": carta["role"],
