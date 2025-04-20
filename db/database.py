@@ -9,7 +9,8 @@ def db_connect():
         print("✅ Conexión exitosa a MongoDB Atlas.")
         return {
             "users": db["users"],
-            "core_cards": db["core_cards"]
+            "core_cards": db["core_cards"],
+            "user_cards": db["user_cards"]
         }
     except Exception as e:
         print(f"❌ Error al conectar con MongoDB: {e}")
@@ -25,7 +26,8 @@ def register_user(users, discord_id, user_name):
         "userName": str(user_name),
         "monedas": 0,
         "clan": "Sin clan",
-        "poder_total": 0
+        "poder_total": 0,
+        "card_count": 0
     })
 
 def update_user(users, discord_id, field, value):

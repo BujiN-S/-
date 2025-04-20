@@ -14,6 +14,7 @@ from discord import ui, ButtonStyle
 db_collections = db_connect()
 users = db_collections["users"]
 core_cards = db_collections["core_cards"]
+user_cards = db_collections["user_cards"]
 
 def color_por_rango(rango):
     colores = {
