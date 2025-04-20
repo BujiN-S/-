@@ -194,13 +194,26 @@ async def recompensa(interaction: discord.Interaction):
     # Actualizar las monedas del usuario en la base de datos
 
     now = datetime.utcnow()
+    last_time = user_data.get("hourly")
+
+    if last_time:
+        elapsed = now - last_time
+        if elapsed.total_seconds() < 3600:  # 1 hora de cooldown
+            restante = timedelta(seconds=3600) - elapsed
+            minutos = int(restante.total_seconds() // 60)
+            segundos = int(restante.total_seconds() % 60)
+            await interaction.response.send_message(
+                f"⏳ Debes esperar **{minutos}m {segundos}s** para volver a reclamar tu carta.",
+                ephemeral=True
+            )
+            return
 
     users.update_one(
     {"discordID": user_id},
     {
         "$set": {
             "monedas": nueva_cantidad,
-            "last_hourly_card_reward": now
+            "last_daily": now
         }
     }
 )
@@ -271,7 +284,7 @@ async def carta_recompensa(interaction: discord.Interaction):
 
     # Verificamos si el usuario tiene cooldown
     now = datetime.utcnow()
-    last_time = user_data.get("last_hourly_card_reward")
+    last_time = user_data.get("hourly")
 
     if last_time:
         elapsed = now - last_time
@@ -303,7 +316,7 @@ async def carta_recompensa(interaction: discord.Interaction):
     # Actualizamos la hora del último reclamo
     users.update_one(
         {"discordID": user_id},
-        {"$set": {"last_hourly_card_reward": now}}
+        {"$set": {"hourly": now}}
     )
 
     if carta:
