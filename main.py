@@ -211,10 +211,10 @@ async def recompensa(interaction: discord.Interaction):
     "Z": 0.001,  # No tocamos Z
     "S": 0.01,   # No tocamos S
     "A": 0.07,   # Aumentamos A
-    "B": 0.12,   # Aumentamos B
+    "B": 0.2,   # Aumentamos B
     "C": 0.25,   # Aumentamos C
-    "D": 0.15,   # Reducimos D
-    "E": 0.2     # Reducimos E
+    "D": 0.12,   # Reducimos D
+    "E": 0.15     # Reducimos E
 
 
     }
@@ -289,11 +289,11 @@ async def carta_recompensa(interaction: discord.Interaction):
     probabilidades = {
         "Z": 0.0001,
         "S": 0.0049,
-        "A": 0.02,
-        "B": 0.07,
-        "C": 0.17,
+        "A": 0.05,
+        "B": 0.17,
+        "C": 0.225,
         "D": 0.25,
-        "E": 0.485
+        "E": 0.30
     }
 
     rango = random.choices(list(probabilidades.keys()), list(probabilidades.values()))[0]
