@@ -192,14 +192,18 @@ async def recompensa(interaction: discord.Interaction):
     nueva_cantidad = user_data.get("monedas", 0) + recompensa_monedas
 
     # Actualizar las monedas del usuario en la base de datos
+
+    now = datetime.utcnow()
+
     users.update_one(
-        {"discordID": user_id},
-        {
-            "$set": {
-                "monedas": nueva_cantidad,
-            }
+    {"discordID": user_id},
+    {
+        "$set": {
+            "monedas": nueva_cantidad,
+            "last_hourly_card_reward": now
         }
-    )
+    }
+)
 
     # Probabilidad de obtener cartas
     probabilidades = {
