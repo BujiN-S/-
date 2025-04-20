@@ -46,11 +46,12 @@ def generar_embed_carta(carta, mostrar_footer=True):
     return embed
 
 def agregar_carta_usuario(user_id, carta):
-    user_cards_data = user_cards.find_one({"discordID": user_id})
-    if not user_cards_data:
+    # 1) Guardar en user_cards
+    user_data = user_cards.find_one({"discordID": user_id})
+    if not user_data:
         user_cards.insert_one({"discordID": user_id, "cards": []})
-        user_cards_data = user_cards.find_one({"discordID": user_id})
-    card_id = len(user_cards_data["cards"]) + 1
+        user_data = user_cards.find_one({"discordID": user_id})
+    card_id = len(user_data["cards"]) + 1
     nueva = {
         "card_id": card_id,
         "name": carta["name"],
@@ -61,6 +62,13 @@ def agregar_carta_usuario(user_id, carta):
         "obtained_at": datetime.utcnow().isoformat()
     }
     user_cards.update_one({"discordID": user_id}, {"$push": {"cards": nueva}})
+    
+    # 2) Incrementar el card_count en la colección de users
+    users.update_one(
+        {"discordID": user_id},
+        {"$inc": {"card_count": 1}},
+        upsert=True
+    )
 
 def elegir_rank(probabilidades):
     return random.choices(
