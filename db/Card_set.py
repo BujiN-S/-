@@ -167,7 +167,7 @@ cards = [
 
 db = db_connect()
 if db:
-    core_cards = db["cards"]
+    core_cards = db["core_cards"]
 
     for card in cards:
         if not core_cards.find_one({"id": card["id"]}):
