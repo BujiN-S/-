@@ -12,7 +12,7 @@ def db_connect():
             "core_cards": db["core_cards"],
             "user_cards": db["user_cards"],
             "shop_packs": db["shop_packs"],
-            "user_packs": db["user_cards"]
+            "user_packs": db["user_packs"]
         }
     except Exception as e:
         print(f"❌ Error al conectar con MongoDB: {e}")
