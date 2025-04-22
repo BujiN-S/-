@@ -695,23 +695,67 @@ async def shop(interaction: Interaction):
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
-# ————————————————
+import random
+from discord import app_commands, Embed, Interaction, ButtonStyle, ui, Color
+
+# ——————————————————————————
+# UTILS
+# ——————————————————————————
+def elegir_rank_threshold(probabilidades: dict[str, float]) -> str:
+    r = random.random()
+    total = 0.0
+    for rank, prob in probabilidades.items():
+        total += prob
+        if r < total:
+            return rank
+    return list(probabilidades.keys())[-1]
+
+def generar_embed_carta(carta: dict, mostrar_footer=True) -> Embed:
+    embed = Embed(
+        title=f"{carta['name']} [{carta['rank']}]",
+        description=f"Clase: {carta['class']} — Rol: {carta['role']}",
+        color=Color.blue()
+    )
+    stats = carta.get("stats", {})
+    embed.add_field(name="Stats", value=(
+        f"ATK: {stats.get('atk', 0)} | DEF: {stats.get('def', 0)} | "
+        f"VEL: {stats.get('vel', 0)} | HP: {stats.get('hp', 0)} | INT: {stats.get('int', 0)}"
+    ), inline=False)
+    if carta.get("image"):
+        embed.set_image(url=carta["image"])
+    if mostrar_footer:
+        embed.set_footer(text="✨ Nueva carta obtenida")
+    return embed
+
+def agregar_carta_usuario(discord_id: str, carta: dict):
+    user_cards.update_one(
+        {"discordID": discord_id},
+        {"$push": {"cards": {
+            "core_id": carta["core_id"],
+            "name": carta["name"],
+            "rank": carta["rank"],
+            "class": carta["class"],
+            "role": carta["role"],
+            "stats": carta["stats"],
+            "image": carta["image"]
+        }}},
+        upsert=True
+    )
+
+# ——————————————————————————
 # VIEW Y BOTÓN
-# ————————————————
-class AbrirView(ui.View):
+# ——————————————————————————
+class AbrirPackView(ui.View):
     def __init__(self, uid: str, packs: list[dict]):
         super().__init__(timeout=None)
         self.uid = uid
         for pack in packs:
-            self.add_item(AbrirBoton(pack_id=pack["id"], count=pack["count"], user_id=uid))
+            self.add_item(AbrirPackButton(pack["id"], pack["count"], uid))
 
-class AbrirBoton(ui.Button):
+class AbrirPackButton(ui.Button):
     def __init__(self, pack_id: str, count: int, user_id: str):
-        super().__init__(
-            label=f"{pack_id} ({count})",
-            style=ButtonStyle.green,
-            custom_id=f"abrir_{pack_id}"
-        )
+        label = f"Abrir {pack_id} ({count})"
+        super().__init__(label=label, style=ButtonStyle.blurple, custom_id=f"abrir_{pack_id}")
         self.pack_id = pack_id
         self.user_id = user_id
 
@@ -719,56 +763,56 @@ class AbrirBoton(ui.Button):
         if str(interaction.user.id) != self.user_id:
             return await interaction.response.send_message("❌ Este botón no es para ti.", ephemeral=True)
 
-        # Restar el pack
+        await interaction.response.defer()
+
+        # 1. Restar pack
         result = user_packs.update_one(
             {"discordID": self.user_id, "packs.id": self.pack_id, "packs.count": {"$gt": 0}},
             {"$inc": {"packs.$.count": -1}}
         )
-
         if result.modified_count == 0:
-            return await interaction.response.send_message("❌ No te queda ese pack.", ephemeral=True)
+            return await interaction.followup.send("❌ Ya no te queda ese pack.", ephemeral=True)
 
+        # 2. Limpiar los que quedan en 0
         user_packs.update_one(
             {"discordID": self.user_id},
             {"$pull": {"packs": {"id": self.pack_id, "count": 0}}}
         )
 
-        # Obtener carta
+        # 3. Tirar carta
         pack = shop_packs.find_one({"id": self.pack_id})
         rank = elegir_rank_threshold(pack["rewards"])
         pool = list(core_cards.find({"rank": rank}))
         carta = random.choice(pool)
         agregar_carta_usuario(self.user_id, carta)
+
         carta_embed = generar_embed_carta(carta)
         carta_embed.set_footer(text=f"✨ Abriste un {pack['name']}")
 
-        # Leer packs restantes
+        # 4. Packs restantes
         doc = user_packs.find_one({"discordID": self.user_id})
         desc = "\n".join(f"{p['id']} ({p['count']})" for p in doc.get("packs", [])) or "No tienes packs."
-
         lista_embed = Embed(
             title="🎁 Packs disponibles",
             description=desc,
             color=Color.purple()
         )
 
-        # Enviar nueva respuesta (mensaje nuevo, no editamos nada)
-        await interaction.response.send_message(
+        await interaction.followup.send(
             content=f"{interaction.user.mention} abrió un pack!",
             embeds=[lista_embed, carta_embed],
-            view=AbrirView(self.user_id, doc.get("packs", []))
+            view=AbrirPackView(self.user_id, doc.get("packs", []))
         )
 
-# ————————————————
+# ——————————————————————————
 # COMANDO /abrir
-# ————————————————
-@bot.tree.command(name="abrir", description="Muestra los packs que puedes abrir.")
+# ——————————————————————————
+@bot.tree.command(name="abrir", description="Abre uno de tus packs guardados.")
 async def abrir(interaction: Interaction):
     uid = str(interaction.user.id)
     doc = user_packs.find_one({"discordID": uid})
-
     if not doc or not doc.get("packs"):
-        return await interaction.response.send_message("❌ No tienes packs. Compra uno con /shop", ephemeral=True)
+        return await interaction.response.send_message("❌ No tienes packs guardados.", ephemeral=True)
 
     desc = "\n".join(f"{p['id']} ({p['count']})" for p in doc["packs"])
     embed = Embed(
@@ -776,7 +820,7 @@ async def abrir(interaction: Interaction):
         description=desc,
         color=Color.purple()
     )
-    view = AbrirView(uid, doc["packs"])
+    view = AbrirPackView(uid, doc["packs"])
     await interaction.response.send_message(embed=embed, view=view)
 
 def run_bot():
