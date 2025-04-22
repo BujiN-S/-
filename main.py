@@ -694,6 +694,7 @@ async def shop(interaction: Interaction):
     view = ShopView(packs)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+
 class OpenView(ui.View):
     def __init__(self, user_id: str, packs: list[dict]):
         super().__init__(timeout=None)
