@@ -695,7 +695,89 @@ async def shop(interaction: Interaction):
     view = ShopView(packs)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
+class OpenView(ui.View):
+    def __init__(self, user_id: str, owned: list[dict]):
+        super().__init__(timeout=None)
+        for entry in owned:  # entry tiene {"id": ..., "count": ...}
+            self.add_item(OpenButton(entry["id"], entry["count"], user_id))
+
+class OpenButton(ui.Button):
+    def __init__(self, pack_id: str, count: int, user_id: str):
+        self.pack_id = pack_id
+        self.user_id = user_id
+        super().__init__(
+            label=f"Abrir {pack_id} ({count})",
+            style=ui.ButtonStyle.blurple,
+            custom_id=f"open_{pack_id}"
+        )
+
+    async def callback(self, interaction: Interaction):
+        uid = str(interaction.user.id)
+
+        # 1) Decrementar count atómicamente
+        res = user_packs.update_one(
+            {"discordID": uid, "packs.id": self.pack_id, "packs.count": {"$gt": 0}},
+            {"$inc": {"packs.$.count": -1}}
+        )
+        if res.matched_count == 0:
+            return await interaction.response.send_message(
+                "❌ No te queda ese pack para abrir.", ephemeral=True
+            )
+
+        # 2) Sacar cualquier entrada en 0
+        user_packs.update_one(
+            {"discordID": uid},
+            {"$pull": {"packs": {"id": self.pack_id, "count": 0}}}
+        )
+
+        # 3) Cargar la definición del pack
+        pack = shop_packs.find_one({"id": self.pack_id})
+        rank = elegir_rank_threshold(pack["rewards"])
+        pool = list(core_cards.find({"rank": rank}))
+        carta = random.choice(pool) if pool else None
+
+        if carta:
+            # Agregar carta al usuario
+            agregar_carta_usuario(uid, carta)
+
+            # Crear embed de la carta
+            embed = generar_embed_carta(carta, mostrar_footer=False)
+            embed.set_footer(text=f"✨ Abriste un **{pack['name']}**")
+
+            # 4) Saber cuántos packs te quedan
+            doc = user_packs.find_one({"discordID": uid})
+            remaining = next((x["count"] for x in doc.get("packs", []) if x["id"] == self.pack_id), 0)
+
+            await interaction.response.send_message(
+                f"📦 Te quedan **{remaining}** `{pack['name']}`.", 
+                embed=embed, ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                f"⚠️ No encontré carta de rango `{rank}`.",
+                ephemeral=True
+            )
+
+@bot.tree.command(name="abrir", description="Abre uno de tus packs guardados.")
+async def abrir(interaction: Interaction):
+    uid = str(interaction.user.id)
+    doc = user_packs.find_one({"discordID": uid})
+
+    if not doc or not doc.get("packs"):
+        return await interaction.response.send_message(
+            "❌ No tienes packs para abrir. Compra alguno con `/shop`.",
+            ephemeral=True
+        )
+
+    embed = Embed(
+        title="🎁 Tus Packs",
+        description="\n".join(f"**{p['id']}** — Cantidad: {p['count']}" for p in doc["packs"]),
+        color=discord.Color.purple()
+    )
+    view = OpenView(uid, doc["packs"])
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 # === Ejecutar bot en segundo plano ===
+
 def run_bot():
     asyncio.run(bot.start(TOKEN))
 
