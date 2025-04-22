@@ -697,37 +697,35 @@ async def shop(interaction: Interaction):
 class OpenView(ui.View):
     def __init__(self, user_id: str, packs: list[dict]):
         super().__init__(timeout=None)
-        self.user_id = user_id
         for entry in packs:
-            pack_id = entry["id"]
-            count   = entry["count"]
-            self.add_item(OpenButton(pack_id, count, user_id))
+            self.add_item(OpenButton(entry["id"], entry["count"], user_id))
 
 class OpenButton(ui.Button):
     def __init__(self, pack_id: str, count: int, user_id: str):
-        # Guardamos para usar luego en callback
         self.pack_id = pack_id
         self.user_id = user_id
-        label = f"Abrir {pack_id} ({count})"
-        super().__init__(label=label, style=ButtonStyle.blurple, custom_id=f"open_{pack_id}")
+        super().__init__(
+            label=f"Abrir {pack_id} ({count})",
+            style=ButtonStyle.blurple,
+            custom_id=f"open_{pack_id}"
+        )
 
     async def callback(self, interaction: Interaction):
         uid = str(interaction.user.id)
-
-        # 1) Solo el dueño puede usar este botón
+        # 1) Sólo el dueño
         if uid != self.user_id:
             return await interaction.response.send_message(
                 "❌ Este botón no es para ti.", ephemeral=True
             )
 
-        # 2) Decrementar atómicamente
+        # 2) Decrementar pack atómico
         res = user_packs.update_one(
             {"discordID": uid, "packs.id": self.pack_id, "packs.count": {"$gt": 0}},
             {"$inc": {"packs.$.count": -1}}
         )
         if res.matched_count == 0:
             return await interaction.response.send_message(
-                "❌ No te queda ese pack para abrir.", ephemeral=True
+                "❌ Ya no te queda ese pack para abrir.", ephemeral=True
             )
 
         # 3) Limpiar ceros
@@ -742,6 +740,7 @@ class OpenButton(ui.Button):
         pool = list(core_cards.find({"rank": rank}))
         carta = random.choice(pool) if pool else None
 
+        # 5) Guardar carta y preparar embed de resultado
         if carta:
             agregar_carta_usuario(uid, carta)
             card_embed = generar_embed_carta(carta, mostrar_footer=False)
@@ -749,28 +748,34 @@ class OpenButton(ui.Button):
         else:
             card_embed = Embed(
                 title="⚠️ No se encontró carta",
-                description=f"Probabilidad de rango `{rank}`, pero no hay cartas disponibles.",
+                description=f"Intenté buscar rango `{rank}` sin suerte.",
                 color=discord.Color.dark_gray()
             )
 
-        # 5) Reconstruir lista de packs actualizada
+        # 6) Leer nuevos packs y enviar primera respuesta
         doc = user_packs.find_one({"discordID": uid})
-        descr = "\n".join(f"**{p['id']}** — Cantidad: {p['count']}" for p in doc.get("packs", [])) or "No tienes packs."
-        main_embed = Embed(
-            title="🎁 Tus Packs Disponibles",
-            description=descr,
-            color=discord.Color.purple()
+        remaining = next(
+            (x["count"] for x in doc.get("packs", []) if x["id"] == self.pack_id),
+            0
+        )
+        await interaction.response.send_message(
+            f"📦 Te quedan **{remaining}** `{pack['name']}`.",
+            embed=card_embed,
+            ephemeral=True
         )
 
-        # 6) Editar el mensaje original con el embed actualizado + carta
-        await interaction.response.edit_message(
-            embeds=[main_embed, card_embed],
-            view=OpenView(uid, doc.get("packs", []))
-        )
+        # 7) Actualizar el mensaje original (el que tenía los botones)
+        try:
+            new_view = OpenView(uid, doc.get("packs", []))
+            await interaction.message.edit(view=new_view)
+        except Exception:
+            # puede fallar si el mensaje original ya expiró, no es crítico
+            pass
 
-# ——————————————————————————
+# —————————————————————————————————————
 # Slash command /abrir
-# ——————————————————————————
+# —————————————————————————————————————
+
 @bot.tree.command(name="abrir", description="Abre uno de tus packs guardados.")
 async def abrir(interaction: Interaction):
     uid = str(interaction.user.id)
@@ -782,10 +787,9 @@ async def abrir(interaction: Interaction):
             ephemeral=True
         )
 
-    descr = "\n".join(f"**{p['id']}** — Cantidad: {p['count']}" for p in doc["packs"])
     embed = Embed(
         title="🎁 Tus Packs Disponibles",
-        description=descr,
+        description="\n".join(f"**{p['id']}** — Cantidad: {p['count']}" for p in doc["packs"]),
         color=discord.Color.purple()
     )
     view = OpenView(uid, doc["packs"])
