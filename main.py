@@ -715,11 +715,9 @@ class OpenButton(ui.Button):
 
     async def callback(self, interaction: Interaction):
         uid = str(interaction.user.id)
-        # 1) Solo el dueño
         if uid != self.user_id:
             return await interaction.response.send_message("❌ Este botón no es para ti.", ephemeral=True)
 
-        # 2) Decrementar pack atómico
         res = user_packs.update_one(
             {"discordID": uid, "packs.id": self.pack_id, "packs.count": {"$gt": 0}},
             {"$inc": {"packs.$.count": -1}}
@@ -727,19 +725,16 @@ class OpenButton(ui.Button):
         if res.matched_count == 0:
             return await interaction.response.send_message("❌ No te queda ese pack para abrir.", ephemeral=True)
 
-        # 3) Limpiar ceros
         user_packs.update_one(
             {"discordID": uid},
             {"$pull": {"packs": {"id": self.pack_id, "count": 0}}}
         )
 
-        # 4) Tirada de carta
         pack = shop_packs.find_one({"id": self.pack_id})
         rank = elegir_rank_threshold(pack["rewards"])
         pool = list(core_cards.find({"rank": rank}))
         carta = random.choice(pool) if pool else None
 
-        # 5) Guardar carta y preparar embed
         if carta:
             agregar_carta_usuario(uid, carta)
             card_embed = generar_embed_carta(carta, mostrar_footer=False)
@@ -751,7 +746,6 @@ class OpenButton(ui.Button):
                 color=Color.dark_gray()
             )
 
-        # 6) Reconstruir lista de packs actualizada
         doc = user_packs.find_one({"discordID": uid})
         descr = "\n".join(f"**{p['id']}** — Cantidad: {p['count']}" for p in doc.get("packs", [])) or "No tienes packs."
         main_embed = Embed(
@@ -760,8 +754,7 @@ class OpenButton(ui.Button):
             color=Color.purple()
         )
 
-        # 7) Editar el mensaje original
-        await interaction.response.edit_message(
+        await interaction.message.edit(
             embeds=[main_embed, card_embed],
             view=OpenView(uid, doc.get("packs", []))
         )
