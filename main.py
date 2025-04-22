@@ -695,28 +695,28 @@ async def shop(interaction: Interaction):
     view = ShopView(packs)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-# ——————————————————————  
-# /abrir: View y Button  
-# ——————————————————————
 class OpenView(ui.View):
     def __init__(self, user_id: str, owned: list[dict]):
         super().__init__(timeout=None)
         for entry in owned:
-            self.add_item(OpenButton(entry["id"], entry["count"], user_id))
+            pack_id = entry["id"]
+            count   = entry["count"]
+            self.add_item(OpenButton(pack_id, count, user_id))
 
 class OpenButton(ui.Button):
     def __init__(self, pack_id: str, count: int, user_id: str):
-        self.pack_id = pack_id
-        self.user_id = user_id
         super().__init__(
             label=f"Abrir {pack_id} ({count})",
             style=ui.ButtonStyle.blurple,
             custom_id=f"open_{pack_id}"
         )
+        self.pack_id = pack_id
+        self.user_id = user_id
 
     async def callback(self, interaction: Interaction):
         uid = str(interaction.user.id)
-        # 1) Decrementa el pack
+
+        # 1) Decrementar atómicamente
         res = user_packs.update_one(
             {"discordID": uid, "packs.id": self.pack_id, "packs.count": {"$gt": 0}},
             {"$inc": {"packs.$.count": -1}}
@@ -725,42 +725,53 @@ class OpenButton(ui.Button):
             return await interaction.response.send_message(
                 "❌ No te queda ese pack para abrir.", ephemeral=True
             )
-        # 2) Saca entradas a 0
+
+        # 2) Eliminar entradas a 0
         user_packs.update_one(
             {"discordID": uid},
             {"$pull": {"packs": {"id": self.pack_id, "count": 0}}}
         )
-        # 3) Selecciona carta
+
+        # 3) Tomar probabilidades y sacar carta
         pack = shop_packs.find_one({"id": self.pack_id})
         rank = elegir_rank_threshold(pack["rewards"])
         pool = list(core_cards.find({"rank": rank}))
         carta = random.choice(pool) if pool else None
 
         if carta:
+            # Guardar la carta al usuario
             agregar_carta_usuario(uid, carta)
+
+            # Mostrar embed de la carta
             card_embed = generar_embed_carta(carta, mostrar_footer=False)
             card_embed.set_footer(text=f"✨ Abriste un **{pack['name']}**")
-            # 4) Cuenta restante
+
+            # 4) Leer cuántos quedan
             doc = user_packs.find_one({"discordID": uid})
-            remaining = next((x["count"] for x in doc.get("packs", []) if x["id"]==self.pack_id), 0)
-            await interaction.response.send_message(
+            remaining = next(
+                (x["count"] for x in doc.get("packs", []) if x["id"] == self.pack_id),
+                0
+            )
+
+            return await interaction.response.send_message(
                 f"📦 Te quedan **{remaining}** `{pack['name']}`.",
                 embed=card_embed,
                 ephemeral=True
             )
         else:
-            await interaction.response.send_message(
-                f"⚠️ No encontré carta de rango `{rank}`.",
+            return await interaction.response.send_message(
+                f"⚠️ No se encontró carta de rango `{rank}`.",
                 ephemeral=True
             )
 
-# ——————————————————————  
-# Slash command /abrir  
-# ——————————————————————
+# —————————————————————————————————————
+# Slash command /abrir
+# —————————————————————————————————————
 @bot.tree.command(name="abrir", description="Abre uno de tus packs guardados.")
 async def abrir(interaction: Interaction):
     uid = str(interaction.user.id)
     doc = user_packs.find_one({"discordID": uid})
+
     if not doc or not doc.get("packs"):
         return await interaction.response.send_message(
             "❌ No tienes packs para abrir. Compra alguno con `/shop`.",
@@ -774,7 +785,7 @@ async def abrir(interaction: Interaction):
     )
     view = OpenView(uid, doc["packs"])
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
+    
 def run_bot():
     asyncio.run(bot.start(TOKEN))
 
