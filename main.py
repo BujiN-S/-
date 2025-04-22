@@ -9,12 +9,16 @@ from db.database import db_connect, verify_user, register_user
 from datetime import datetime, timedelta
 import random
 from discord import ui, ButtonStyle
+from discord import Interaction, Embed
+
 
 # Conexión a MongoDB y colecciones
 db_collections = db_connect()
 users = db_collections["users"]
 core_cards = db_collections["core_cards"]
 user_cards = db_collections["user_cards"]
+shop_packs = db_collections["shop_packs"]
+user_packs = db_collections["user_packs"]
 
 def color_por_rango(rango):
     colores = {
@@ -598,6 +602,105 @@ async def collection(interaction: discord.Interaction):
         view=view,
         ephemeral=True
     )
+
+# ————————————————————————————————
+# Clase interactiva para mostrar la tienda
+# ————————————————————————————————
+class ShopView(ui.View):
+    def __init__(self, packs, user_id):
+        super().__init__(timeout=None)
+        self.packs = packs
+        self.user_id = user_id
+
+        for pack in packs:
+            self.add_item(ShopButton(pack, user_id))
+
+
+class ShopButton(ui.Button):
+    def __init__(self, pack, user_id):
+        self.pack = pack
+        self.user_id = user_id
+        label = f"Comprar {pack['name']}"
+        super().__init__(label=label, style=discord.ButtonStyle.green, custom_id=pack["id"])
+
+    async def callback(self, interaction: Interaction):
+        user_data = users.find_one({"discordID": str(self.user_id)})
+        if not user_data:
+            return await interaction.response.send_message("❌ No estás registrado. Usa `/start`.", ephemeral=True)
+
+        balance = user_data.get("monedas", 0)
+        price = self.pack["price"]
+
+        if balance < price:
+            return await interaction.response.send_message(
+                "❌ No tienes suficientes monedas para comprar este pack.",
+                ephemeral=True
+            )
+
+        # Restar monedas
+        users.update_one({"discordID": str(self.user_id)}, {"$inc": {"monedas": -price}})
+
+        # Guardar pack en user_packs
+        existing = user_packs.find_one({"discordID": str(self.user_id)})
+        if not existing:
+            user_packs.insert_one({"discordID": str(self.user_id), "packs": []})
+            existing = user_packs.find_one({"discordID": str(self.user_id)})
+
+        packs_actualizados = existing["packs"]
+        for p in packs_actualizados:
+            if p["id"] == self.pack["id"]:
+                p["count"] += 1
+                break
+        else:
+            packs_actualizados.append({"id": self.pack["id"], "count": 1})
+
+        user_packs.update_one(
+            {"discordID": str(self.user_id)},
+            {"$set": {"packs": packs_actualizados}}
+        )
+
+        await interaction.response.send_message(
+            f"📦 Has comprado un **{self.pack['name']}** por {price} monedas.",
+            ephemeral=True
+        )
+
+# ————————————————————————————————
+# Comando /shop
+# ————————————————————————————————
+@bot.tree.command(name="shop", description="Mira los packs disponibles en la tienda.")
+async def shop(interaction: Interaction):
+    user_id = str(interaction.user.id)
+
+    user_data = users.find_one({"discordID": user_id})
+    if not user_data:
+        return await interaction.response.send_message("❌ No estás registrado. Usa `/start`.", ephemeral=True)
+
+    packs_data = list(shop_packs.find())
+    if not packs_data:
+        return await interaction.response.send_message("🚫 No hay packs disponibles en la tienda.", ephemeral=True)
+
+    embed = Embed(
+        title="🛍️ Tienda de Packs",
+        description=f"💰 Monedas disponibles: **{user_data.get('monedas', 0)}**",
+        color=discord.Color.gold()
+    )
+
+    for pack in packs_data:
+        prob_Z = pack["rewards"].get("Z", 0)
+        prob_S = pack["rewards"].get("S", 0)
+        prob_A = pack["rewards"].get("A", 0)
+        embed.add_field(
+            name=f"{pack['name']} — 💰 {pack['price']} monedas",
+            value=(
+                f"_{pack['description']}_\n"
+                f"**Probabilidades:** Z: {round(prob_Z * 100, 2)}% | "
+                f"S: {round(prob_S * 100, 2)}% | A: {round(prob_A * 100, 2)}%"
+            ),
+            inline=False
+        )
+
+    view = ShopView(packs_data, user_id)
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # === Ejecutar bot en segundo plano ===
 def run_bot():
