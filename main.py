@@ -43,7 +43,7 @@ def generar_embed_carta(carta, mostrar_footer=True):
             f"**🔥 Overall:** {carta['overall']}"
         )
     )
-    embed.set_image(url=carta["image_url"])
+    embed.set_image(url=carta["image"])
     if mostrar_footer:
         embed.set_footer(text="Una nueva presencia se une a tu colección...")
     return embed
@@ -62,7 +62,7 @@ def agregar_carta_usuario(user_id, carta):
         "class": carta["class"],
         "role": carta["role"],
         "rank": carta["rank"],
-        "image_url": carta.get("image", ""),
+        "image": carta.get("image", ""),
         "obtained_at": datetime.utcnow().isoformat()
     }
 
