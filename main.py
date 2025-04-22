@@ -603,131 +603,96 @@ async def collection(interaction: discord.Interaction):
         ephemeral=True
     )
 
-# ————————————————————————————————
-# Clase interactiva para mostrar la tienda
-# ————————————————————————————————
+# —————————————————————————————
+# ShopView y ShopButton revisados
+# —————————————————————————————
 class ShopView(ui.View):
-    def __init__(self, packs, user_id):
+    def __init__(self, packs):
         super().__init__(timeout=None)
-        self.user_id = user_id
         for pack in packs:
-            # pasamos TANTO el objeto pack como el user_id
-            self.add_item(ShopButton(pack, user_id))
+            # cada botón lleva su propio pack_id en custom_id
+            self.add_item(ShopButton(str(pack["id"])))
 
 class ShopButton(ui.Button):
-    def __init__(self, pack, user_id):
-        self.pack = pack
-        self.user_id = user_id
+    def __init__(self, pack_id: str):
+        self.pack_id = pack_id
+        # llamamos a la BD para obtener nombre / precio
+        pack = shop_packs.find_one({"id": pack_id})
         label = f"Comprar {pack['name']}"
-        # custom_id debe ser string
-        super().__init__(
-            label=label,
-            style=discord.ButtonStyle.green,
-            custom_id=str(pack["id"])
-        )
+        super().__init__(label=label, style=discord.ButtonStyle.green, custom_id=pack_id)
 
     async def callback(self, interaction: Interaction):
-        try:
-            # 1) Verifico registro y balance
-            user_data = users.find_one({"discordID": str(self.user_id)})
-            if not user_data:
-                return await interaction.response.send_message(
-                    "❌ No estás registrado. Usa `/start`.",
-                    ephemeral=True
-                )
+        user_id = str(interaction.user.id)
+        # 1) Verifico usuario
+        user = users.find_one({"discordID": user_id})
+        if not user:
+            return await interaction.response.send_message("❌ No estás registrado. Usa `/start`.", ephemeral=True)
 
-            balance = user_data.get("monedas", 0)
-            price   = self.pack["price"]
-            if balance < price:
-                return await interaction.response.send_message(
-                    "❌ No tienes suficientes monedas para comprar este pack.",
-                    ephemeral=True
-                )
+        # 2) Re-leo pack desde BD (por si cambió)
+        pack = shop_packs.find_one({"id": self.pack_id})
+        if not pack:
+            return await interaction.response.send_message("❌ Este pack ya no existe.", ephemeral=True)
 
-            # 2) Resto monedas
-            users.update_one(
-                {"discordID": str(self.user_id)},
-                {"$inc": {"monedas": -price}}
-            )
+        price = pack["price"]
+        if user.get("monedas", 0) < price:
+            return await interaction.response.send_message("❌ No tienes suficientes monedas.", ephemeral=True)
 
-            # 3) Agrego el pack a user_packs
-            existing = user_packs.find_one({"discordID": str(self.user_id)})
-            if not existing:
-                user_packs.insert_one({
-                    "discordID": str(self.user_id),
-                    "packs": []
-                })
-                existing = user_packs.find_one({"discordID": str(self.user_id)})
+        # 3) Transacción atómica: resto monedas
+        users.update_one(
+            {"discordID": user_id},
+            {"$inc": {"monedas": -price}}
+        )
 
-            packs_list = existing["packs"]
-            for p in packs_list:
-                if p["id"] == self.pack["id"]:
-                    p["count"] += 1
-                    break
-            else:
-                packs_list.append({"id": self.pack["id"], "count": 1})
-
+        # 4) Sumar pack al inventario con $inc o $push atómico
+        res = user_packs.update_one(
+            {"discordID": user_id, "packs.id": self.pack_id},
+            {"$inc": {"packs.$.count": 1}}
+        )
+        if res.matched_count == 0:
+            # no existía, lo creamos
             user_packs.update_one(
-                {"discordID": str(self.user_id)},
-                {"$set": {"packs": packs_list}}
+                {"discordID": user_id},
+                {"$push": {"packs": {"id": self.pack_id, "count": 1}}},
+                upsert=True
             )
 
-            # 4) Confirmación al usuario
-            await interaction.response.send_message(
-                f"📦 Has comprado un **{self.pack['name']}** por {price} monedas.",
-                ephemeral=True
-            )
-
-        except Exception as e:
-            # Log para debugging
-            print(f"[ERROR] ShopButton.callback: {e}", flush=True)
-            await interaction.response.send_message(
-                "❌ Hubo un error al procesar la compra. Intenta nuevamente.",
-                ephemeral=True
-            )
+        # 5) Confirmación al usuario
+        await interaction.response.send_message(
+            f"📦 Has comprado un **{pack['name']}** por {price} monedas.",
+            ephemeral=True
+        )
 
 # —————————————————————————————
-# Comando /shop
+# Comando /shop corregido
 # —————————————————————————————
-@bot.tree.command(name="shop", description="Mira los packs disponibles en la tienda.")
+@bot.tree.command(name="shop", description="Mira y compra packs en la tienda.")
 async def shop(interaction: Interaction):
-    user_id   = str(interaction.user.id)
-    user_data = users.find_one({"discordID": user_id})
-    if not user_data:
-        return await interaction.response.send_message(
-            "❌ No estás registrado. Usa `/start`.",
-            ephemeral=True
-        )
+    user_id = str(interaction.user.id)
 
-    packs_data = list(shop_packs.find())
-    if not packs_data:
-        return await interaction.response.send_message(
-            "🛒 La tienda está vacía por el momento.",
-            ephemeral=True
-        )
+    # Validar registro y saldo
+    user = users.find_one({"discordID": user_id})
+    if not user:
+        return await interaction.response.send_message("❌ No estás registrado. Usa `/start`.", ephemeral=True)
 
-    # Construyo el embed de la tienda
+    packs = list(shop_packs.find())
+    if not packs:
+        return await interaction.response.send_message("🛒 La tienda está vacía.", ephemeral=True)
+
+    # Construyo embed
     embed = Embed(
         title="🛍️ Tienda de Packs",
-        description=f"💰 Monedas disponibles: **{user_data.get('monedas', 0)}**",
+        description=f"💰 Monedas: **{user.get('monedas', 0)}**",
         color=discord.Color.gold()
     )
-    for pack in packs_data:
-        prob_Z = pack["rewards"].get("Z", 0)
-        prob_S = pack["rewards"].get("S", 0)
-        prob_A = pack["rewards"].get("A", 0)
+    for p in packs:
         embed.add_field(
-            name=f"{pack['name']} — 💰 {pack['price']} monedas",
-            value=(
-                f"_{pack['description']}_\n"
-                f"**Probabilidades:** Z {round(prob_Z*100,2)}% | "
-                f"S {round(prob_S*100,2)}% | A {round(prob_A*100,2)}%"
-            ),
+            name=f"{p['name']} — 💰 {p['price']}",
+            value=f"_{p['description']}_\nZ: {p['rewards']['Z']*100:.2f}% • S: {p['rewards']['S']*100:.2f}%",
             inline=False
         )
 
-    # Adjunto los botones
-    view = ShopView(packs_data, user_id)
+    # Muestro botones
+    view = ShopView(packs)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # === Ejecutar bot en segundo plano ===
