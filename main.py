@@ -552,7 +552,12 @@ class CollectionView(ui.View):
         self.per_page = per_page
         self.current = 0
 
-        self.select = ui.Select(placeholder="Selecciona una carta para ver detalles", options=[])
+        self.select = ui.Select(
+            placeholder="Selecciona una carta para ver detalles",
+            options=[],
+            min_values=1,
+            max_values=1
+        )
         self.select.callback = self.on_select
         self.add_item(self.select)
 
@@ -570,16 +575,18 @@ class CollectionView(ui.View):
         end = start + self.per_page
         page = self.cartas[start:end]
 
-        self.select.options.clear()
-        for c in page:
-            self.select.append_option(discord.SelectOption(label=f"{c['name']} [{c['rank']}] ID:{c['card_id']}", value=c['card_id']))
+        self.select.options = [
+            discord.SelectOption(
+                label=f"{c['name']} [{c['rank']}] ID:{c['card_id']}",
+                value=str(c['card_id'])
+            ) for c in page
+        ]
 
         self.prev_button.disabled = self.current == 0
         max_page = (len(self.cartas) - 1) // self.per_page
         self.next_button.disabled = self.current >= max_page
 
     async def on_prev(self, interaction: discord.Interaction):
-        await interaction.response.defer()
         self.current -= 1
         self.update_select_options()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
@@ -591,7 +598,7 @@ class CollectionView(ui.View):
 
     async def on_select(self, interaction: discord.Interaction):
         carta_id = self.select.values[0]
-        carta = next((c for c in self.cartas if c['card_id'] == carta_id), None)
+        carta = next((c for c in self.cartas if str(c['card_id']) == carta_id), None)
         if carta:
             embed = generar_embed_carta(carta, mostrar_footer=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -602,9 +609,10 @@ class CollectionView(ui.View):
         start = self.current * self.per_page
         end = start + self.per_page
         page = self.cartas[start:end]
+        max_page = (len(self.cartas) - 1) // self.per_page + 1
 
         embed = discord.Embed(
-            title=f"🎴 Tu Colección (Página {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
+            title=f"🎴 Tu Colección (Página {self.current + 1}/{max_page})",
             color=discord.Color.purple()
         )
         for c in page:
@@ -615,9 +623,12 @@ class CollectionView(ui.View):
             )
         return embed
 
+# Comando de colección
 @bot.tree.command(name="collection", description="Navega tu colección con detalles y ID único.")
 async def collection(interaction: discord.Interaction):
-    all_cards = list(user_cards.find())
+    user_id = interaction.user.id
+    all_cards = list(user_cards.find({"user_id": user_id}))
+
     if not all_cards:
         await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
         return
