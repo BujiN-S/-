@@ -610,26 +610,20 @@ class CollectionView(ui.View):
         for c in page:
             embed.add_field(
                 name=f"{c['name']} [{c['rank']}]",
-                value=f"Clase: {c['class']} • Rol: {c['role']}\n🆔 {c['card_id']}",
+                value=f"Clase: {c['class']} • Rol: {c['role']} • ID: {c['card_id']}",
                 inline=False
             )
         return embed
 
 @bot.tree.command(name="collection", description="Navega tu colección con detalles y ID único.")
 async def collection(interaction: discord.Interaction):
-    uid = str(interaction.user.id)
-    data = user_cards.find_one({"discordID": uid})
-    if not data or not data.get("cards"):
-        return await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
+    all_cards = list(user_cards.find())
+    if not all_cards:
+        await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
+        return
 
-    enriched = []
-    for uc in data["cards"]:
-        core = core_cards.find_one({"id": uc["core_id"]})
-        if core:
-            enriched.append({**core, "card_id": uc["card_id"], "image": core.get("image", "")})
-
-    view = CollectionView(enriched, per_page=10)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+    view = CollectionView(all_cards, per_page=10)
+    await interaction.response.send_message(embed=view.get_embed(), view=view)
 
 
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
