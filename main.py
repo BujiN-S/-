@@ -665,12 +665,10 @@ async def collection(interaction: Interaction):
             "❌ No tienes cartas en tu colección.", ephemeral=True
         )
 
+    # Combinar datos base (core_cards) con cada copia de user_cards
     enriched = []
     for uc in user_doc["cards"]:
-        core_id = uc.get("core_id")
-        if not core_id:
-            continue
-        core = core_cards.find_one({"id": str(core_id)})
+        core = core_cards.find_one({"id": uc["core_id"]})
         if not core:
             continue
         enriched.append({
@@ -681,8 +679,7 @@ async def collection(interaction: Interaction):
 
     if not enriched:
         return await interaction.response.send_message(
-            "⚠️ No se pudo cargar tu colección. Verifica que tus cartas estén correctamente enlazadas.",
-            ephemeral=True
+            "⚠️ No pude cargar los datos de tus cartas.", ephemeral=True
         )
 
     view = CollectionView(uid, enriched, per_page=5)
