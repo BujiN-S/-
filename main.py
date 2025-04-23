@@ -736,8 +736,11 @@ class AbrirPackButton(ui.Button):
         carta = random.choice(pool)
         agregar_carta_usuario(self.user_id, carta)
 
-        carta_embed = generar_embed_carta(carta)
+        # Mostrar solo la imagen de la carta
+        carta_embed = Embed(color=color_por_rango(carta["rank"]))
+        carta_embed.set_image(url=carta.get("image", ""))
         carta_embed.set_footer(text=f"🎁 Abriste un {pack['name']}")
+
 
         # 4. Mostrar packs restantes
         doc = user_packs.find_one({"discordID": self.user_id})
