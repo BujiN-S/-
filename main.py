@@ -121,6 +121,16 @@ HOURLY_PROBS = {
     "E": 0.25
 }
 
+RANK_VALUE = {
+    "E": 250,
+    "D": 900,
+    "C": 1750,
+    "B": 4000,
+    "A": 6500,
+    "S": 11250,
+    "Z": 20000
+}
+
 def elegir_rank_threshold(probs: dict[str, float]) -> str:
     """
     Recibe un dict rank->prob (suman 1.0), 
@@ -780,6 +790,49 @@ async def abrir(interaction: Interaction):
     )
     view = AbrirPackView(uid, doc["packs"])
     await interaction.response.send_message(embed=embed, view=view)
+
+@bot.tree.command(name="vender", description="Vende una carta que poseas usando su ID único.")
+@app_commands.describe(id="ID de la carta que deseas vender")
+async def vender(interaction: Interaction, id: str):
+    uid = str(interaction.user.id)
+
+    # Buscar la carta por su card_id
+    doc = user_cards.find_one({"discordID": uid})
+    if not doc or "cards" not in doc:
+        return await interaction.response.send_message("❌ No tienes cartas.", ephemeral=True)
+
+    carta = next((c for c in doc["cards"] if str(c.get("card_id")) == id), None)
+
+    if not carta:
+        return await interaction.response.send_message("❌ No se encontró ninguna carta con ese ID.", ephemeral=True)
+
+    # Determinar valor según rango
+    rango = carta.get("rank", "E")
+    valor = RANK_VALUE.get(rango, 0)
+
+    # Eliminar la carta
+    user_cards.update_one(
+        {"discordID": uid},
+        {"$pull": {"cards": {"card_id": carta["card_id"]}}}
+    )
+
+    # Agregar monedas
+    users.update_one(
+        {"discordID": uid},
+        {"$inc": {"monedas": valor}}
+    )
+
+    # Confirmación
+    embed = Embed(
+        title="💰 Carta vendida",
+        description=(
+            f"Vendiste **{carta['name']}** [{rango}]\n"
+            f"Ganaste **{valor} monedas**."
+        ),
+        color=Color.gold()
+    )
+
+    await interaction.response.send_message(embed=embed)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
