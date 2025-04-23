@@ -530,13 +530,20 @@ class CatalogView(ui.View):
 
     async def on_select(self, interaction: discord.Interaction):
         sel = self.select.values[0]
-        # Para catálogo normal se busca por c['id'], para colección por card_id
+
+    # Determina si estamos en modo colección o catálogo
         key = 'card_id' if self.show_card_id else 'id'
+
+    # 🔄 Aseguramos que ambos sean str para que siempre comparen bien
         carta = next((c for c in self.cartas if str(c.get(key)) == str(sel)), None)
+
         if carta:
             embed = generar_embed_carta(carta, mostrar_footer=False)
+
+        # Si estás en modo colección, muestra el ID único
             if self.show_card_id and 'card_id' in carta:
                 embed.set_footer(text=f"🆔 {carta['card_id']}")
+
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message("❌ No se encontró la carta.", ephemeral=True)
