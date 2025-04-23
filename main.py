@@ -669,18 +669,6 @@ async def collection(interaction: Interaction):
             self._refresh()
             await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
-        async def on_select(self, interaction: Interaction):
-            cid = int(self.select.values[0])
-            carta = next((c for c in self.cards if c["card_id"] == cid), None)
-            if carta:
-                embed = generar_embed_carta(carta, mostrar_footer=False)
-                embed.set_footer(text=f"🆔 {carta['card_id']}")
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-            else:
-                await interaction.response.send_message("❌ Carta no encontrada.", ephemeral=True)
-
-    view = CollectionView(enriched, per_page=5)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
 
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
