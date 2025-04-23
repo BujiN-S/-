@@ -532,7 +532,7 @@ class CatalogView(ui.View):
         sel = self.select.values[0]
         # Para catálogo normal se busca por c['id'], para colección por card_id
         key = 'card_id' if self.show_card_id else 'id'
-        carta = next((c for c in self.cartas if str(c.get(key)) == sel), None)
+        carta = next((c for c in self.cartas if str(c.get(key)) == str(sel)), None)
         if carta:
             embed = generar_embed_carta(carta, mostrar_footer=False)
             if self.show_card_id and 'card_id' in carta:
