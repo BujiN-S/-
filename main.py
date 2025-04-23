@@ -571,7 +571,7 @@ async def collection(interaction: Interaction):
         enriched.append({
             **core,
             "card_id": uc["card_id"],
-            "image": core.get("image", uc.get("image_url", "")),
+            "image": core.get("image", uc.get("image", "")),
         })
 
     if not enriched:
