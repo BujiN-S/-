@@ -32,24 +32,6 @@ def color_por_rango(rango):
     return colores.get(rango.upper(), discord.Color.default())
 
 def generar_embed_carta(carta, mostrar_footer=True):
-    stats = carta.get("stats", {})
-    embed = discord.Embed(
-        color=color_por_rango(carta.get("rank", "E")),
-        description=(
-            f"**📝 Name:** {carta.get('name', 'Desconocida')}\n"
-            f"**🎖️ Rank:** {carta.get('rank', '?')}\n"
-            f"**🏷️ Class:** {carta.get('class', '?')}\n"
-            f"**🎭 Role:** {carta.get('role', '?')}\n\n"
-            f"**📊 Stats:** "
-            f"🗡️ATK{stats.get('atk', 0)} | 🛡️DEF{stats.get('def', 0)} | ⚡VEL{stats.get('vel', 0)} | ❤️HP{stats.get('hp', 0)} | 🧠INT{stats.get('int', 0)}\n"
-            f"**🔥 Overall:** {carta.get('overall', '?')}"
-        )
-    )
-    if carta.get("image"):
-        embed.set_image(url=carta["image"])
-    if mostrar_footer:
-        embed.set_footer(text="Una nueva presencia se une a tu colección...")
-    return embed
     embed = discord.Embed(
         color=color_por_rango(carta["rank"]),
         description=(
@@ -612,7 +594,6 @@ class CollectionView(ui.View):
         carta = next((c for c in self.cartas if c['card_id'] == carta_id), None)
         if carta:
             embed = generar_embed_carta(carta, mostrar_footer=False)
-            embed.set_footer(text=f"ID: {carta['card_id']}")
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message("❌ No se encontró la carta.", ephemeral=True)
