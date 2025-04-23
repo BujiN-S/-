@@ -658,46 +658,18 @@ async def collection(interaction: Interaction):
     if not data or not data.get("cards"):
         return await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
 
-    # Enriquecer cada carta con sus datos de core_cards
     enriched = []
     for uc in data["cards"]:
         core = core_cards.find_one({"id": uc["core_id"]})
-        if not core:
-            continue
-        carta = {
+        if not core: continue
+        enriched.append({
             **core,
             "card_id": uc["card_id"],
-            # si core usa 'image', ok; si usa 'image_url', ajusta aquí:
-            "image": core.get("image") or uc.get("image", "")
-        }
-        enriched.append(carta)
-
-    if not enriched:
-        return await interaction.response.send_message("⚠️ No pude mapear tus cartas al catálogo.", ephemeral=True)
+            "image": core.get("image", "")
+        })
 
     view = CollectionView(uid, enriched, per_page=5)
     await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
-
-    user_id = str(interaction.user.id)
-    data = user_cards.find_one({"discordID": user_id})
-    if not data or not data.get("cards"):
-        return await interaction.response.send_message(
-            "❌ No tienes cartas en tu colección.",
-            ephemeral=True
-        )
-
-    # Generar embed con cada carta del usuario mostrando su card_id
-    embed = Embed(
-        title=f"🔮 Colección de {interaction.user.name}",
-        color=Color.blue()
-    )
-    for carta in data["cards"]:
-        embed.add_field(
-            name=f"{carta['name']} [{carta['rank']}] — ID: {carta['card_id']}",
-            value=f"Clase: {carta['class']} • Rol: {carta['role']}",
-            inline=False
-        )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # —————————————————————————————
 # ShopView y ShopButton revisados
