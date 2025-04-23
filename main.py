@@ -493,15 +493,16 @@ class CatalogView(ui.View):
         opts = []
         for c in page:
             label = f"{c['name']} [{c['rank']}]"
-            # Si show_card_id está activado, lo añadimos:
             if self.show_card_id and 'card_id' in c:
                 label += f" — ID:{c['card_id']}"
-            opts.append(discord.SelectOption(label=label, value=str(c.get('id') or c.get('card_id'))))
+            value = str(c['card_id']) if self.show_card_id else str(c['id'])
+            opts.append(discord.SelectOption(label=label, value=value))
         self.select.options = opts
 
         self.prev_button.disabled = self.current == 0
         max_page = (len(self.cartas) - 1) // self.per_page
         self.next_button.disabled = self.current >= max_page
+
 
     def get_embed(self):
         start = self.current * self.per_page
