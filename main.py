@@ -585,83 +585,76 @@ class CollectionView(ui.View):
         self.per_page = per_page
         self.current = 0
 
-        # Select para elegir carta por card_id
-        self.select = ui.Select(placeholder="Selecciona una carta", options=[])
+        self.select = ui.Select(placeholder="Selecciona una carta por ID", options=[])
         self.select.callback = self.on_select
         self.add_item(self.select)
 
-        # Botones de paginación
-        self.prev_button = ui.Button(label="⬅️ Atrás", style=ButtonStyle.secondary)
-        self.next_button = ui.Button(label="➡️ Siguiente", style=ButtonStyle.secondary)
-        self.prev_button.callback = self.on_prev
-        self.next_button.callback = self.on_next
-        self.add_item(self.prev_button)
-        self.add_item(self.next_button)
+        self.prev = ui.Button(label="⬅️ Atrás", style=ButtonStyle.secondary)
+        self.next = ui.Button(label="➡️ Siguiente", style=ButtonStyle.secondary)
+        self.prev.callback = self.on_prev
+        self.next.callback = self.on_next
+        self.add_item(self.prev)
+        self.add_item(self.next)
 
-        self.update_select_options()
+        self.update_options()
 
-    def update_select_options(self):
+    def update_options(self):
         start = self.current * self.per_page
         page = self.cards[start:start + self.per_page]
-
-        # Construimos las opciones del select
         self.select.options = [
             SelectOption(
                 label=f"{c['name']} [{c['rank']}] ID:{c['card_id']}",
                 value=str(c['card_id'])
-            ) for c in page
+            )
+            for c in page
         ]
-        # Habilitar/deshabilitar botones
-        self.prev_button.disabled = self.current == 0
+        self.prev.disabled = self.current == 0
         max_page = (len(self.cards) - 1) // self.per_page
-        self.next_button.disabled = self.current >= max_page
+        self.next.disabled = self.current >= max_page
 
     async def on_prev(self, interaction: Interaction):
         self.current -= 1
-        self.update_select_options()
+        self.update_options()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     async def on_next(self, interaction: Interaction):
         self.current += 1
-        self.update_select_options()
+        self.update_options()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     async def on_select(self, interaction: Interaction):
-        chosen_id = self.select.values[0]
-        carta = next((c for c in self.cards if str(c['card_id']) == chosen_id), None)
+        cid = self.select.values[0]
+        carta = next((c for c in self.cards if str(c['card_id']) == cid), None)
         if not carta:
             return await interaction.response.send_message("❌ Carta no encontrada.", ephemeral=True)
-
-        # Genera el embed completo de la carta
-        embed = generar_embed_carta(carta, mostrar_footer=False)
-        embed.set_footer(text=f"🆔 ID: {carta['card_id']}")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        emb = generar_embed_carta(carta, mostrar_footer=False)
+        emb.set_footer(text=f"🆔 ID: {carta['card_id']}")
+        await interaction.response.send_message(embed=emb, ephemeral=True)
 
     def get_embed(self):
         page_num = self.current + 1
-        total_pages = (len(self.cards) - 1) // self.per_page + 1
-        embed = Embed(
-            title=f"🔮 Colección de {self.uid} (Página {page_num}/{total_pages})",
+        total = (len(self.cards) - 1) // self.per_page + 1
+        emb = Embed(
+            title=f"🔮 {self.uid}'s Colección ({page_num}/{total})",
             color=Color.blue()
         )
-        for c in self.cards[self.current * self.per_page : (self.current+1) * self.per_page]:
-            embed.add_field(
-                name=f"{c['name']} [{c['rank']}] — ID: {c['card_id']}",
+        for c in self.cards[self.current*self.per_page : (self.current+1)*self.per_page]:
+            emb.add_field(
+                name=f"{c['name']} [{c['rank']}] — ID:{c['card_id']}",
                 value=f"Clase: {c['class']} • Rol: {c['role']}",
                 inline=False
             )
-        return embed
+        return emb
 
-@bot.tree.command(name="collection", description="Navega tu colección mostrando el ID de cada carta.")
+@bot.tree.command(name="collection", description="Navega tu colección mostrando el ID único.")
 async def collection(interaction: Interaction):
     uid = str(interaction.user.id)
-    user_doc = user_cards.find_one({"discordID": uid})
-    if not user_doc or not user_doc.get("cards"):
+    data = user_cards.find_one({"discordID": uid})
+    if not data or not data.get("cards"):
         return await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
 
-    # Enriquecemos cada carta con su info base
     enriched = []
-    for uc in user_doc["cards"]:
+    for uc in data["cards"]:
         core = core_cards.find_one({"id": uc["core_id"]})
         if not core: continue
         enriched.append({
@@ -671,10 +664,10 @@ async def collection(interaction: Interaction):
         })
 
     if not enriched:
-        return await interaction.response.send_message("⚠️ No pude cargar los datos de tus cartas.", ephemeral=True)
+        return await interaction.response.send_message("⚠️ No pude cargar tus cartas.", ephemeral=True)
 
     view = CollectionView(uid, enriched, per_page=5)
-    await interaction.response.send_message(embed=view.get_embed(), view=view)
+    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
 
 # —————————————————————————————
 # ShopView y ShopButton revisados
