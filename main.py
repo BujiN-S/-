@@ -575,10 +575,110 @@ async def buscarcarta(interaction: discord.Interaction, name: str = None, class_
         view = CatalogView(cartas, per_page=10)
         await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
 
-@bot.tree.command(name="collection", description="Muestra tus cartas obtenidas.")
-async def collection(interaction: discord.Interaction):
-    user_id = str(interaction.user.id)
+class CollectionView(ui.View):
+    def __init__(self, uid: str, cards: list[dict], per_page: int = 5):
+        super().__init__(timeout=None)
+        self.uid = uid
+        self.cards = cards
+        self.per_page = per_page
+        self.current = 0
 
+        self.select = ui.Select(placeholder="Selecciona una carta para ver detalles", options=[])
+        self.select.callback = self.on_select
+        self.add_item(self.select)
+
+        self.prev_button = ui.Button(label="⬅️ Atrás", style=ButtonStyle.secondary)
+        self.next_button = ui.Button(label="➡️ Siguiente", style=ButtonStyle.secondary)
+        self.prev_button.callback = self.on_prev
+        self.next_button.callback = self.on_next
+        self.add_item(self.prev_button)
+        self.add_item(self.next_button)
+
+        self.update_select_options()
+
+    def update_select_options(self):
+        start = self.current * self.per_page
+        end = start + self.per_page
+        page = self.cards[start:end]
+
+        self.select.options = [
+            discord.SelectOption(
+                label=f"{c['name']} [{c['rank']}] ID:{c['card_id']}",
+                value=str(c['card_id'])
+            )
+            for c in page
+        ]
+
+        self.prev_button.disabled = self.current == 0
+        max_page = (len(self.cards) - 1) // self.per_page
+        self.next_button.disabled = self.current >= max_page
+
+    async def on_prev(self, interaction: Interaction):
+        await interaction.response.defer()
+        self.current -= 1
+        self.update_select_options()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+
+    async def on_next(self, interaction: Interaction):
+        self.current += 1
+        self.update_select_options()
+        await interaction.response.edit_message(embed=self.get_embed(), view=self)
+
+    async def on_select(self, interaction: Interaction):
+        card_id = self.select.values[0]
+        carta = next((c for c in self.cards if str(c['card_id']) == card_id), None)
+        if carta:
+            embed = generar_embed_carta(carta, mostrar_footer=False)
+            embed.set_footer(text=f"🆔 ID: {carta['card_id']}")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            await interaction.response.send_message("❌ Carta no encontrada.", ephemeral=True)
+
+    def get_embed(self):
+        start = self.current * self.per_page
+        end = start + self.per_page
+        page = self.cards[start:end]
+
+        embed = Embed(
+            title=f"🔮 Colección de {self.uid} (Página {self.current+1}/{(len(self.cards)-1)//self.per_page+1})",
+            color=Color.blue()
+        )
+        for c in page:
+            embed.add_field(
+                name=f"{c['name']} [{c['rank']}] — ID: {c['card_id']}",
+                value=f"Clase: {c['class']} • Rol: {c['role']}",
+                inline=False
+            )
+        return embed
+
+@bot.tree.command(name="collection", description="Muestra tus cartas obtenidas con navegación e ID.")
+async def collection(interaction: Interaction):
+    uid = str(interaction.user.id)
+    data = user_cards.find_one({"discordID": uid})
+    if not data or not data.get("cards"):
+        return await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
+
+    # Enriquecer cada carta con sus datos de core_cards
+    enriched = []
+    for uc in data["cards"]:
+        core = core_cards.find_one({"id": uc["core_id"]})
+        if not core:
+            continue
+        carta = {
+            **core,
+            "card_id": uc["card_id"],
+            # si core usa 'image', ok; si usa 'image_url', ajusta aquí:
+            "image": core.get("image") or uc.get("image", "")
+        }
+        enriched.append(carta)
+
+    if not enriched:
+        return await interaction.response.send_message("⚠️ No pude mapear tus cartas al catálogo.", ephemeral=True)
+
+    view = CollectionView(uid, enriched, per_page=5)
+    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+
+    user_id = str(interaction.user.id)
     data = user_cards.find_one({"discordID": user_id})
     if not data or not data.get("cards"):
         return await interaction.response.send_message(
@@ -586,31 +686,18 @@ async def collection(interaction: discord.Interaction):
             ephemeral=True
         )
 
-    # Obtener todos los core_ids de las cartas del usuario
-    core_ids = [c["core_id"] for c in data["cards"] if "core_id" in c]
-
-    if not core_ids:
-        return await interaction.response.send_message(
-            "⚠️ Tus cartas no tienen core_id. Usa `/recompensa` o `/cartarecompensa` para obtener nuevas cartas.",
-            ephemeral=True
-        )
-
-    # Buscar en core_cards solo las cartas que tenés
-    owned_cards = list(core_cards.find({"id": {"$in": core_ids}}))
-
-    if not owned_cards:
-        return await interaction.response.send_message(
-            "❌ No se encontraron tus cartas en la base de datos.",
-            ephemeral=True
-        )
-
-    # Mostrar en formato catálogo
-    view = CatalogView(owned_cards, per_page=5)
-    await interaction.response.send_message(
-        embed=view.get_embed(),
-        view=view,
-        ephemeral=True
+    # Generar embed con cada carta del usuario mostrando su card_id
+    embed = Embed(
+        title=f"🔮 Colección de {interaction.user.name}",
+        color=Color.blue()
     )
+    for carta in data["cards"]:
+        embed.add_field(
+            name=f"{carta['name']} [{carta['rank']}] — ID: {carta['card_id']}",
+            value=f"Clase: {carta['class']} • Rol: {carta['role']}",
+            inline=False
+        )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # —————————————————————————————
 # ShopView y ShopButton revisados
