@@ -167,6 +167,7 @@ async def on_ready():
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
+    bot.add_view(CollectionView([]))
 
 @bot.tree.command(name="start", description="Start your adventure!")
 async def start(interaction: discord.Interaction):
