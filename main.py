@@ -466,12 +466,11 @@ async def dar(interaction: discord.Interaction, usuario: discord.User, cantidad:
     await interaction.response.send_message(embed=embed)
 
 class CatalogView(ui.View):
-    def __init__(self, cartas, per_page: int = 10, *, show_card_id: bool = False):
+    def __init__(self, cartas, per_page: int = 10):
         super().__init__(timeout=None)
         self.cartas = cartas
         self.per_page = per_page
         self.current = 0
-        self.show_card_id = show_card_id
 
         self.select = ui.Select(placeholder="Selecciona una carta para ver detalles", options=[])
         self.select.callback = self.on_select
@@ -488,38 +487,19 @@ class CatalogView(ui.View):
 
     def update_select_options(self):
         start = self.current * self.per_page
-        page = self.cartas[start:start + self.per_page]
+        end = start + self.per_page
+        page = self.cartas[start:end]
 
-        opts = []
+        self.select.options.clear()
         for c in page:
-            label = f"{c['name']} [{c['rank']}]"
-            if self.show_card_id and 'card_id' in c:
-                label += f" — ID:{c['card_id']}"
-            value = str(c['card_id']) if self.show_card_id else str(c['id'])
-            opts.append(discord.SelectOption(label=label, value=value))
-        self.select.options = opts
+            self.select.append_option(discord.SelectOption(label=f"{c['name']} [{c['rank']}]",value=c['id']))
 
         self.prev_button.disabled = self.current == 0
         max_page = (len(self.cartas) - 1) // self.per_page
         self.next_button.disabled = self.current >= max_page
 
-
-    def get_embed(self):
-        start = self.current * self.per_page
-        page = self.cartas[start:start + self.per_page]
-        total = (len(self.cartas) - 1) // self.per_page + 1
-        title = f"📚 Catálogo (Página {self.current+1}/{total})"
-        if self.show_card_id:
-            title = title.replace("Catálogo", "Tu Colección")
-        embed = discord.Embed(title=title, color=discord.Color.blurple())
-        for c in page:
-            value = f"Class: {c['class']} • Role: {c['role']}"
-            if self.show_card_id and 'card_id' in c:
-                value = f"ID: {c['card_id']} • " + value
-            embed.add_field(name=f"{c['name']} [{c['rank']}]", value=value, inline=False)
-        return embed
-
     async def on_prev(self, interaction: discord.Interaction):
+        await interaction.response.defer()
         self.current -= 1
         self.update_select_options()
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
@@ -530,24 +510,30 @@ class CatalogView(ui.View):
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     async def on_select(self, interaction: discord.Interaction):
-        sel = self.select.values[0]
-
-    # Determina si estamos en modo colección o catálogo
-        key = 'card_id' if self.show_card_id else 'id'
-
-    # 🔄 Aseguramos que ambos sean str para que siempre comparen bien
-        carta = next((c for c in self.cartas if str(c.get(key)) == str(sel)), None)
-
+        carta_id = self.select.values[0]
+        carta = next((c for c in self.cartas if c['id'] == carta_id), None)
         if carta:
             embed = generar_embed_carta(carta, mostrar_footer=False)
-
-        # Si estás en modo colección, muestra el ID único
-            if self.show_card_id and 'card_id' in carta:
-                embed.set_footer(text=f"🆔 {carta['card_id']}")
-
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             await interaction.response.send_message("❌ No se encontró la carta.", ephemeral=True)
+
+    def get_embed(self):
+        start = self.current * self.per_page
+        end = start + self.per_page
+        page = self.cartas[start:end]
+
+        embed = discord.Embed(
+            title=f"📚 Catálogo (Página {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
+            color=discord.Color.blurple()
+        )
+        for c in page:
+            embed.add_field(
+                name=f"{c['name']} [{c['rank']}]",
+                value=f"Class: {c['class']} • Role: {c['role']}",
+                inline=False
+            )
+        return embed
 
 @bot.tree.command(name="catalog", description="Muestra todas las cartas con navegación y opción de ver detalles.")
 async def catalog(interaction: discord.Interaction):
@@ -556,34 +542,31 @@ async def catalog(interaction: discord.Interaction):
         await interaction.response.send_message("❌ No hay cartas en la base de datos.", ephemeral=True)
         return
 
-    view = CatalogView(all_cards, per_page=10, show_card_id=False)
+    view = CatalogView(all_cards, per_page=10)
     await interaction.response.send_message(embed=view.get_embed(), view=view)
 
-@bot.tree.command(name="collection", description="Navega tu colección con ID único.")
+@bot.tree.command(name="collection", description="Prueba básica: lista tus primeras 10 cartas.")
 async def collection(interaction: Interaction):
     uid = str(interaction.user.id)
     user_doc = user_cards.find_one({"discordID": uid})
     cards = user_doc.get("cards", []) if user_doc else []
 
     if not cards:
-        return await interaction.response.send_message("❌ No tienes cartas.", ephemeral=True)
+        return await interaction.response.send_message(
+            "❌ No tienes cartas en tu colección.", ephemeral=True
+        )
 
-    # Bulk fetch core_cards
-    core_ids = [str(c["core_id"]) for c in cards]
-    cores = core_cards.find({"id": {"$in": core_ids}})
-    core_map = {c["id"]: c for c in cores}
-
-    enriched = []
-    for uc in cards:
-        core = core_map.get(str(uc["core_id"]))
-        if core:
-            enriched.append({**core, **uc})
-
-    if not enriched:
-        return await interaction.response.send_message("⚠️ No pude cargar tus cartas.", ephemeral=True)
-
-    view = CatalogView(enriched, per_page=5, show_card_id=True)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+    # Solo listamos nombre, rango e ID de las primeras 10 cartas
+    lines = [
+        f"{uc.get('name','?')} [{uc.get('rank','?')}] — ID:{uc.get('card_id','?')}"
+        for uc in cards[:10]
+    ]
+    embed = discord.Embed(
+        title="🔍 Tus primeras 10 cartas",
+        description="\n".join(lines),
+        color=discord.Color.blue()
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
