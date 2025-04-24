@@ -883,92 +883,67 @@ async def vender(interaction: Interaction, id: str):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Asumimos colecciones MongoDB inicializadas:
-# user_formations, user_teams, user_cards
-
-# 1️⃣ /formacion: eliges directamente la plantilla por nombre
-@bot.tree.command(name="formacion", description="Elige tu plantilla de formación 4v4.")
-@app_commands.choices(
-    plantilla=[
-        app_commands.Choice(name="2 Frontline, 1 Midline, 1 Backline", value="f1"),
-        app_commands.Choice(name="1 Frontline, 2 Midline, 1 Backline", value="f2"),
-        app_commands.Choice(name="1 Frontline, 1 Midline, 2 Backline", value="f3"),
-    ]
-)
-async def formacion(
-    interaction: discord.Interaction,
-    plantilla: app_commands.Choice[str],
-):
-    # Guardar la plantilla elegida (solo la key: f1, f2 o f3)
+# /formacion
+@bot.tree.command(name="formacion",description="Elige tu plantilla 4v4")
+@app_commands.choices(plantilla=[
+    app_commands.Choice(name="2F,1M,1B",value="f1"),
+    app_commands.Choice(name="1F,2M,1B",value="f2"),
+    app_commands.Choice(name="1F,1M,2B",value="f3"),
+])
+async def formacion(interaction: discord.Interaction, plantilla: app_commands.Choice[str]):
+    await interaction.response.send_message(f"📝 Plantilla {plantilla.name} guardada.", ephemeral=True)
     user_formations.update_one(
-        {"user_id": str(interaction.user.id)},
-        {"$set": {"template_key": plantilla.value}},
+        {"user_id":str(interaction.user.id)},
+        {"$set":{"template_key":plantilla.value}},
         upsert=True
     )
-    await interaction.response.send_message(
-        f"✔️ Has seleccionado la plantilla **{plantilla.name}**.",
-        ephemeral=True
-    )
 
-# 2️⃣ /equipo: rellenas la plantilla pasando IDs en orden
-@bot.tree.command(name="equipo", description="Rellena tu plantilla con los IDs de tus cartas.")
+# /equipo
+@bot.tree.command(name="equipo",description="Rellena tu plantilla con IDs de cartas")
 @app_commands.describe(
-    frontline1="ID carta Frontline #1",
-    frontline2="ID carta Frontline #2 (si tu plantilla pide 2)",
-    midline1="ID carta Midline #1",
-    midline2="ID carta Midline #2 (si tu plantilla pide 2)",
-    backline1="ID carta Backline #1",
-    backline2="ID carta Backline #2 (si tu plantilla pide 2)",
+    frontline1="ID de Frontline 1", frontline2="ID de Frontline 2",
+    midline1="ID de Midline 1",     midline2="ID de Midline 2",
+    backline1="ID de Backline 1",   backline2="ID de Backline 2",
 )
 async def equipo(
     interaction: discord.Interaction,
-    frontline1: str,
-    frontline2: str = None,
-    midline1: str = None,
-    midline2: str = None,
-    backline1: str = None,
-    backline2: str = None,
+    frontline1: str, frontline2: str=None,
+    midline1: str=None,   midline2: str=None,
+    backline1: str=None,  backline2: str=None,
 ):
-    # 1. Recuperar plantilla
-    record = user_formations.find_one({"user_id": str(interaction.user.id)})
-    if not record or "template_key" not in record:
-        return await interaction.response.send_message(
-            "❌ Primero elige tu plantilla con `/formacion`.",
-            ephemeral=True
-        )
-    tpl = FORMATION_TEMPLATES[record["template_key"]]
+    await interaction.response.defer(ephemeral=True)
+    # 1) plantilla
+    rec = user_formations.find_one({"user_id":str(interaction.user.id)})
+    if not rec:
+        return await interaction.followup.send("❌ Primero usa `/formacion`", ephemeral=True)
+    tpl = FORMATION_TEMPLATES[rec["template_key"]]
 
-    # 2. Construir listas según la plantilla
+    # 2) recolectar IDs
     zones = {
-        "frontline": [frontline1, frontline2],
-        "midline":   [midline1,   midline2],
-        "backline":  [backline1,  backline2],
+        "frontline":[frontline1,frontline2],
+        "midline":  [midline1,  midline2],
+        "backline": [backline1, backline2],
     }
-    selected = {}
-    for zone, needed in tpl.items():
-        # filtra None y valida longitud
-        ids = [i for i in zones[zone] if i]
-        if len(ids) != needed:
-            return await interaction.response.send_message(
-                f"❌ Tu plantilla requiere {needed} IDs en **{zone}**, "
-                f"pero diste {len(ids)}.",
+    team = {}
+    for z,need in tpl.items():
+        vals = [v for v in zones[z] if v]
+        if len(vals)!=need:
+            return await interaction.followup.send(
+                f"❌ Tu plantilla necesita {need} IDs en **{z}**, pero diste {len(vals)}.",
                 ephemeral=True
             )
-        selected[zone] = ids
+        team[z]=vals
 
-    # 3. Guardar en DB
+    # 3) guardar y responder
     user_teams.update_one(
-        {"user_id": str(interaction.user.id)},
-        {"$set": {"team": selected}},
+        {"user_id":str(interaction.user.id)},
+        {"$set":{"team":team}},
         upsert=True
     )
-
-    # 4. Responder con un mensaje sencillo
-    texto = "✅ Formación guardada:\n"
-    for zone, ids in selected.items():
-        texto += f"**{zone.title()}**: {', '.join(ids)}\n"
-
-    await interaction.response.send_message(texto, ephemeral=True)
+    texto="✅ Equipo guardado:\n"
+    for z,ids in team.items():
+        texto+=f"**{z.title()}**: {', '.join(ids)}\n"
+    await interaction.followup.send(texto, ephemeral=True)
 
 
 def run_bot():
