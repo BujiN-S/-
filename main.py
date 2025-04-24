@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import random
 from discord import ui, ButtonStyle
 from discord import Interaction, Embed, Color
+from discord.ui import View, Button
 
 # Conexión a MongoDB y colecciones
 db_collections = db_connect()
@@ -556,8 +557,8 @@ async def catalog(interaction: discord.Interaction):
     view = CatalogView(all_cards, per_page=10)
     await interaction.response.send_message(embed=view.get_embed(), view=view)
 
-@bot.tree.command(name="collection", description="Prueba básica: lista tus cartas con paginación.")
-async def collection(interaction: discord.Interaction):
+@bot.tree.command(name="collection", description="Muestra tus cartas con paginación.")
+async def collection(interaction: Interaction):
     uid = str(interaction.user.id)
     user_doc = user_cards.find_one({"discordID": uid})
     cards = user_doc.get("cards", []) if user_doc else []
@@ -567,55 +568,68 @@ async def collection(interaction: discord.Interaction):
             "❌ No tienes cartas en tu colección.", ephemeral=True
         )
 
-    class Paginator(ui.View):
-        def __init__(self, cards, per_page: int = 10):
-            super().__init__(timeout=None)
-            self.cards = cards
-            self.per_page = per_page
-            self.page = 0
+    per_page = 10
+    total_pages = (len(cards) - 1) // per_page + 1
 
-            # desactivar Prev si estamos en la página 0
-            self.prev.disabled = True
-            # desactivar Next si no hay más páginas
-            if len(self.cards) <= self.per_page:
-                self.next.disabled = True
+    async def send_page(page):
+        start = page * per_page
+        end = start + per_page
+        current = cards[start:end]
+        lines = [
+            f"{uc.get('name','?')} [{uc.get('rank','?')}] — ID:{uc.get('card_id','?')} | {uc.get('role','?')} | {uc.get('class','?')}"
+            for uc in current
+        ]
+        embed = Embed(
+            title=f"📘 Colección (página {page+1}/{total_pages})",
+            description="\n".join(lines),
+            color=Embed.Empty
+        )
 
-        def get_embed(self):
-            start = self.page * self.per_page
-            end = start + self.per_page
-            chunk = self.cards[start:end]
+        view = View()
 
-            embed = discord.Embed(
-                title=f"📖 Colección ({self.page+1}/{(len(self.cards)-1)//self.per_page+1})",
-                color=discord.Color.blue()
+        if page > 0:
+            view.add_item(Button(label="⬅️ Anterior", style=ButtonStyle.secondary, custom_id=f"prev_{page}"))
+        if page < total_pages - 1:
+            view.add_item(Button(label="➡️ Siguiente", style=ButtonStyle.secondary, custom_id=f"next_{page}"))
+
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+    @bot.event
+    async def on_interaction(inter: Interaction):
+        if not inter.data or "custom_id" not in inter.data:
+            return
+
+        cid = inter.data["custom_id"]
+        if cid.startswith("prev_") or cid.startswith("next_"):
+            uid_now = str(inter.user.id)
+            if uid_now != uid:
+                return await inter.response.send_message("❌ Esto no es tu colección.", ephemeral=True)
+
+            current_page = int(cid.split("_")[1])
+            new_page = current_page - 1 if cid.startswith("prev_") else current_page + 1
+
+            start = new_page * per_page
+            end = start + per_page
+            current = cards[start:end]
+            lines = [
+                f"{uc.get('name','?')} [{uc.get('rank','?')}] — ID:{uc.get('card_id','?')} | {uc.get('role','?')} | {uc.get('class','?')}"
+                for uc in current
+            ]
+            embed = Embed(
+                title=f"📘 Colección (página {new_page+1}/{total_pages})",
+                description="\n".join(lines),
+                color=Embed.Empty
             )
-            for c in chunk:
-                embed.add_field(
-                    name=f"{c.get('name','?')} [{c.get('rank','?')}]",
-                    value=f"ID: {c.get('card_id','?')}",
-                    inline=False
-                )
-            return embed
 
-        @ui.button(label="⬅", style=ButtonStyle.secondary)
-        async def prev(self, button: ui.Button, i: discord.Interaction):
-            self.page -= 1
-            # actualizar estado de botones
-            self.prev.disabled = self.page == 0
-            self.next.disabled = False
-            await i.response.edit_message(embed=self.get_embed(), view=self)
+            view = View()
+            if new_page > 0:
+                view.add_item(Button(label="⬅️ Anterior", style=ButtonStyle.secondary, custom_id=f"prev_{new_page}"))
+            if new_page < total_pages - 1:
+                view.add_item(Button(label="➡️ Siguiente", style=ButtonStyle.secondary, custom_id=f"next_{new_page}"))
 
-        @ui.button(label="➡", style=ButtonStyle.secondary)
-        async def next(self, button: ui.Button, i: discord.Interaction):
-            self.page += 1
-            # actualizar estado de botones
-            self.prev.disabled = False
-            if (self.page + 1) * self.per_page >= len(self.cards):
-                self.next.disabled = True
-            await i.response.edit_message(embed=self.get_embed(), view=self)
+            await inter.response.edit_message(embed=embed, view=view)
 
-    view = Paginator(cards)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+    await send_page(0)
 
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
