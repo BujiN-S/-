@@ -575,11 +575,21 @@ async def collection(interaction: discord.Interaction):
             self.per_page = per_page
             self.page = 0
 
-            # desactivar Prev si estamos en la página 0
-            self.prev.disabled = True
-            # desactivar Next si no hay más páginas
-            if len(self.cards) <= self.per_page:
-                self.next.disabled = True
+            # crear botones manualmente
+            self.prev_button = ui.Button(label="⬅", style=discord.ButtonStyle.secondary)
+            self.next_button = ui.Button(label="➡", style=discord.ButtonStyle.secondary)
+
+            self.prev_button.callback = self.prev_page
+            self.next_button.callback = self.next_page
+
+            self.add_item(self.prev_button)
+            self.add_item(self.next_button)
+
+            self.update_buttons()
+
+        def update_buttons(self):
+            self.prev_button.disabled = self.page == 0
+            self.next_button.disabled = (self.page + 1) * self.per_page >= len(self.cards)
 
         def get_embed(self):
             start = self.page * self.per_page
@@ -593,27 +603,20 @@ async def collection(interaction: discord.Interaction):
             for c in chunk:
                 embed.add_field(
                     name=f"{c.get('name','?')} [{c.get('rank','?')}]",
-                    value=f"ID: {c.get('card_id','?')}",
+                    value=f"ID: {c.get('card_id','?')} | Rol: {c.get('role','?')} | Clase: {c.get('class','?')}",
                     inline=False
                 )
             return embed
 
-        @ui.button(label="⬅", style=ButtonStyle.secondary)
-        async def prev(self, button: ui.Button, i: discord.Interaction):
+        async def prev_page(self, interaction: discord.Interaction):
             self.page -= 1
-            # actualizar estado de botones
-            self.prev.disabled = self.page == 0
-            self.next.disabled = False
-            await i.response.edit_message(embed=self.get_embed(), view=self)
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
-        @ui.button(label="➡", style=ButtonStyle.secondary)
-        async def next(self, button: ui.Button, i: discord.Interaction):
+        async def next_page(self, interaction: discord.Interaction):
             self.page += 1
-            # actualizar estado de botones
-            self.prev.disabled = False
-            if (self.page + 1) * self.per_page >= len(self.cards):
-                self.next.disabled = True
-            await i.response.edit_message(embed=self.get_embed(), view=self)
+            self.update_buttons()
+            await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     view = Paginator(cards)
     await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
