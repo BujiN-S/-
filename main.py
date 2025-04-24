@@ -621,7 +621,6 @@ async def collection(interaction: discord.Interaction):
     view = Paginator(cards)
     await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
 
-
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
 async def buscarcarta(interaction: discord.Interaction, name: str = None, class_: str = None, role: str = None, rank: str = None):
@@ -888,19 +887,35 @@ async def vender(interaction: Interaction, id: str):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# /formacion
-@bot.tree.command(name="formacion",description="Elige tu plantilla 4v4")
-@app_commands.choices(plantilla=[
-    app_commands.Choice(name="2F,1M,1B",value="f1"),
-    app_commands.Choice(name="1F,2M,1B",value="f2"),
-    app_commands.Choice(name="1F,1M,2B",value="f3"),
-])
-async def formacion(interaction: discord.Interaction, plantilla: app_commands.Choice[str]):
-    await interaction.response.send_message(f"📝 Plantilla {plantilla.name} guardada.", ephemeral=True)
+@bot.tree.command(name="formacion", description="Elige tu formación de combate.")
+@app_commands.describe(opcion="Selecciona una formación predeterminada.")
+@app_commands.choices(
+    opcion=[
+        app_commands.Choice(name="Ofensiva", value="ofensiva"),
+        app_commands.Choice(name="Equilibrada", value="equilibrada"),
+        app_commands.Choice(name="Defensiva", value="defensiva"),
+        app_commands.Choice(name="Versátil", value="versátil"),
+    ]
+)
+async def formacion(interaction: discord.Interaction, opcion: app_commands.Choice[str]):
+    uid = str(interaction.user.id)
+
+    formaciones = {
+        "ofensiva": ["frontline", "frontline", "midline", "backline"],
+        "equilibrada": ["frontline", "midline", "midline", "backline"],
+        "defensiva": ["frontline", "midline", "backline", "backline"],
+        "versátil": ["frontline", "midline", "backline", "midline"]
+    }
+
     user_formations.update_one(
-        {"user_id":str(interaction.user.id)},
-        {"$set":{"template_key":plantilla.value}},
+        {"discordID": uid},
+        {"$set": {"formation": formaciones[opcion.value]}},
         upsert=True
+    )
+
+    await interaction.response.send_message(
+        f"✅ Formación **{opcion.name}** seleccionada correctamente.",
+        ephemeral=True
     )
 
 # /equipo
