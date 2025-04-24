@@ -571,7 +571,7 @@ async def collection(interaction: Interaction):
     per_page = 10
     total_pages = (len(cards) - 1) // per_page + 1
 
-    async def send_page(page):
+    async def show_page(page, interaction_to_edit=None):
         start = page * per_page
         end = start + per_page
         current = cards[start:end]
@@ -580,56 +580,35 @@ async def collection(interaction: Interaction):
             for uc in current
         ]
         embed = Embed(
-            title=f"📘 Colección (página {page+1}/{total_pages})",
+            title=f"📘 Colección (página {page + 1}/{total_pages})",
             description="\n".join(lines),
             color=Embed.Empty
         )
 
-        view = View()
+        view = View(timeout=60)
 
         if page > 0:
-            view.add_item(Button(label="⬅️ Anterior", style=ButtonStyle.secondary, custom_id=f"prev_{page}"))
+            view.add_item(Button(label="⬅️", style=ButtonStyle.secondary, custom_id=f"prev_{page}"))
         if page < total_pages - 1:
-            view.add_item(Button(label="➡️ Siguiente", style=ButtonStyle.secondary, custom_id=f"next_{page}"))
+            view.add_item(Button(label="➡️", style=ButtonStyle.secondary, custom_id=f"next_{page}"))
 
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-
-    @bot.event
-    async def on_interaction(inter: Interaction):
-        if not inter.data or "custom_id" not in inter.data:
-            return
-
-        cid = inter.data["custom_id"]
-        if cid.startswith("prev_") or cid.startswith("next_"):
-            uid_now = str(inter.user.id)
-            if uid_now != uid:
+        async def button_callback(inter: Interaction):
+            if inter.user.id != interaction.user.id:
                 return await inter.response.send_message("❌ Esto no es tu colección.", ephemeral=True)
 
-            current_page = int(cid.split("_")[1])
-            new_page = current_page - 1 if cid.startswith("prev_") else current_page + 1
+            new_page = page - 1 if inter.data["custom_id"].startswith("prev") else page + 1
+            await show_page(new_page, inter)
 
-            start = new_page * per_page
-            end = start + per_page
-            current = cards[start:end]
-            lines = [
-                f"{uc.get('name','?')} [{uc.get('rank','?')}] — ID:{uc.get('card_id','?')} | {uc.get('role','?')} | {uc.get('class','?')}"
-                for uc in current
-            ]
-            embed = Embed(
-                title=f"📘 Colección (página {new_page+1}/{total_pages})",
-                description="\n".join(lines),
-                color=Embed.Empty
-            )
+        for item in view.children:
+            item.callback = button_callback
 
-            view = View()
-            if new_page > 0:
-                view.add_item(Button(label="⬅️ Anterior", style=ButtonStyle.secondary, custom_id=f"prev_{new_page}"))
-            if new_page < total_pages - 1:
-                view.add_item(Button(label="➡️ Siguiente", style=ButtonStyle.secondary, custom_id=f"next_{new_page}"))
+        if interaction_to_edit:
+            await interaction_to_edit.response.edit_message(embed=embed, view=view)
+        else:
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-            await inter.response.edit_message(embed=embed, view=view)
+    await show_page(0)
 
-    await send_page(0)
 
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
