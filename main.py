@@ -18,6 +18,8 @@ core_cards = db_collections["core_cards"]
 user_cards = db_collections["user_cards"]
 shop_packs = db_collections["shop_packs"]
 user_packs = db_collections["user_packs"]
+user_formations = db_collections["user_formations"]
+user_teams = db_collections["user_teams"]
 
 def color_por_rango(rango):
     colores = {
@@ -129,6 +131,15 @@ RANK_VALUE = {
     "A": 6500,
     "S": 11250,
     "Z": 20000
+}
+
+FORMATION_TEMPLATES = {
+    "f1": {"label": "Formation 1: 2 Frontline, 1 Midline, 1 Backline",
+           "frontline": 2, "midline": 1, "backline": 1},
+    "f2": {"label": "Formation 2: 1 Frontline, 2 Midline, 1 Backline",
+           "frontline": 1, "midline": 2, "backline": 1},
+    "f3": {"label": "Formation 3: 1 Frontline, 1 Midline, 2 Backline",
+           "frontline": 1, "midline": 1, "backline": 2},
 }
 
 def elegir_rank_threshold(probs: dict[str, float]) -> str:
@@ -568,7 +579,6 @@ async def collection(interaction: Interaction):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-
 @bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
 async def buscarcarta(interaction: discord.Interaction, name: str = None, class_: str = None, role: str = None, rank: str = None):
@@ -783,33 +793,48 @@ async def abrir(interaction: Interaction):
 async def vender(interaction: Interaction, id: str):
     uid = str(interaction.user.id)
 
-    # Buscar la carta por su card_id
+    # 1️⃣ Comprobar si la carta está en el equipo activo
+    team_doc = user_teams.find_one({"discordID": uid})
+    if team_doc and "team" in team_doc:
+        used_ids = []
+        for zone in ("frontline", "midline", "backline"):
+            # extraemos los IDs como strings
+            used_ids += [str(cid) for cid in team_doc["team"].get(zone, [])]
+        if id in used_ids:
+            return await interaction.response.send_message(
+                "❌ No puedes vender una carta que está en tu equipo activo.", 
+                ephemeral=True
+            )
+
+    # 2️⃣ Recuperar la carta por su card_id de tu colección
     doc = user_cards.find_one({"discordID": uid})
     if not doc or "cards" not in doc:
         return await interaction.response.send_message("❌ No tienes cartas.", ephemeral=True)
 
     carta = next((c for c in doc["cards"] if str(c.get("card_id")) == id), None)
-
     if not carta:
-        return await interaction.response.send_message("❌ No se encontró ninguna carta con ese ID.", ephemeral=True)
+        return await interaction.response.send_message(
+            "❌ No se encontró ninguna carta con ese ID.", 
+            ephemeral=True
+        )
 
-    # Determinar valor según rango
+    # 3️⃣ Determinar valor de venta según rango
     rango = carta.get("rank", "E")
     valor = RANK_VALUE.get(rango, 0)
 
-    # Eliminar la carta
+    # 4️⃣ Eliminar la carta de tu colección
     user_cards.update_one(
         {"discordID": uid},
         {"$pull": {"cards": {"card_id": carta["card_id"]}}}
     )
 
-    # Agregar monedas
+    # 5️⃣ Otorgar las monedas
     users.update_one(
         {"discordID": uid},
         {"$inc": {"monedas": valor}}
     )
 
-    # Confirmación
+    # 6️⃣ Confirmación al usuario
     embed = Embed(
         title="💰 Carta vendida",
         description=(
@@ -818,8 +843,95 @@ async def vender(interaction: Interaction, id: str):
         ),
         color=Color.gold()
     )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    await interaction.response.send_message(embed=embed)
+# Asumimos colecciones MongoDB inicializadas:
+# user_formations, user_teams, user_cards
+
+# 1️⃣ /formacion: eliges directamente la plantilla por nombre
+@bot.tree.command(name="formacion", description="Elige tu plantilla de formación 4v4.")
+@app_commands.choices(
+    plantilla=[
+        app_commands.Choice(name="2 Frontline, 1 Midline, 1 Backline", value="f1"),
+        app_commands.Choice(name="1 Frontline, 2 Midline, 1 Backline", value="f2"),
+        app_commands.Choice(name="1 Frontline, 1 Midline, 2 Backline", value="f3"),
+    ]
+)
+async def formacion(
+    interaction: discord.Interaction,
+    plantilla: app_commands.Choice[str],
+):
+    # Guardar la plantilla elegida (solo la key: f1, f2 o f3)
+    user_formations.update_one(
+        {"user_id": str(interaction.user.id)},
+        {"$set": {"template_key": plantilla.value}},
+        upsert=True
+    )
+    await interaction.response.send_message(
+        f"✔️ Has seleccionado la plantilla **{plantilla.name}**.",
+        ephemeral=True
+    )
+
+# 2️⃣ /equipo: rellenas la plantilla pasando IDs en orden
+@bot.tree.command(name="equipo", description="Rellena tu plantilla con los IDs de tus cartas.")
+@app_commands.describe(
+    frontline1="ID carta Frontline #1",
+    frontline2="ID carta Frontline #2 (si tu plantilla pide 2)",
+    midline1="ID carta Midline #1",
+    midline2="ID carta Midline #2 (si tu plantilla pide 2)",
+    backline1="ID carta Backline #1",
+    backline2="ID carta Backline #2 (si tu plantilla pide 2)",
+)
+async def equipo(
+    interaction: discord.Interaction,
+    frontline1: str,
+    frontline2: str = None,
+    midline1: str = None,
+    midline2: str = None,
+    backline1: str = None,
+    backline2: str = None,
+):
+    # 1. Recuperar plantilla
+    record = user_formations.find_one({"user_id": str(interaction.user.id)})
+    if not record or "template_key" not in record:
+        return await interaction.response.send_message(
+            "❌ Primero elige tu plantilla con `/formacion`.",
+            ephemeral=True
+        )
+    tpl = FORMATION_TEMPLATES[record["template_key"]]
+
+    # 2. Construir listas según la plantilla
+    zones = {
+        "frontline": [frontline1, frontline2],
+        "midline":   [midline1,   midline2],
+        "backline":  [backline1,  backline2],
+    }
+    selected = {}
+    for zone, needed in tpl.items():
+        # filtra None y valida longitud
+        ids = [i for i in zones[zone] if i]
+        if len(ids) != needed:
+            return await interaction.response.send_message(
+                f"❌ Tu plantilla requiere {needed} IDs en **{zone}**, "
+                f"pero diste {len(ids)}.",
+                ephemeral=True
+            )
+        selected[zone] = ids
+
+    # 3. Guardar en DB
+    user_teams.update_one(
+        {"user_id": str(interaction.user.id)},
+        {"$set": {"team": selected}},
+        upsert=True
+    )
+
+    # 4. Responder con un mensaje sencillo
+    texto = "✅ Formación guardada:\n"
+    for zone, ids in selected.items():
+        texto += f"**{zone.title()}**: {', '.join(ids)}\n"
+
+    await interaction.response.send_message(texto, ephemeral=True)
+
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
@@ -828,4 +940,4 @@ threading.Thread(target=run_bot).start()
 
 # === Ejecutar app Flask ===
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080))) 
+    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
