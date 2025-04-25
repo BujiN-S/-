@@ -1008,6 +1008,131 @@ async def equipo(interaction: Interaction):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+# Estadísticas máximas por carta: ATK, DEF, VEL, INT, HP
+
+def calcular_turnos(jugadores):
+    orden = []
+    for carta in jugadores:
+        prioridad = carta['vel'] + random.randint(0, 5)
+        orden.append((prioridad, carta))
+    orden.sort(reverse=True, key=lambda x: x[0])
+    return [c for _, c in orden]
+
+def accionar(carta, aliados, enemigos, registro):
+    clase = carta['role']
+    objetivo = None
+
+    if clase in ["slayer", "berserker", "duelist", "avenger"]:
+        vivos = [e for e in enemigos if e['hp'] > 0]
+        if not vivos: return
+        objetivo = min(vivos, key=lambda x: x['hp']) if clase == "duelist" else random.choice(vivos)
+
+        bonus = carta['atk']
+        if clase == "avenger":
+            caidos = 4 - len([a for a in aliados if a['hp'] > 0])
+            bonus += caidos  # Se vuelve más fuerte
+
+        dano = max(1, bonus - objetivo['def'])
+        objetivo['hp'] -= dano
+
+        registro.append(f"⚔️ **{carta['name']}** ataca a **{objetivo['name']}** causando **{dano} de daño**.")
+
+    elif clase in ["healer", "radiant healer"]:
+        heridos = [a for a in aliados if a['hp'] < a['max_hp'] and a['hp'] > 0]
+        if not heridos: return
+        objetivo = min(heridos, key=lambda x: x['hp'])
+        ratio = 0.4 if clase == "radiant healer" else 0.2
+        curacion = int(objetivo['max_hp'] * ratio + carta['int'])
+        objetivo['hp'] = min(objetivo['max_hp'], objetivo['hp'] + curacion)
+
+        registro.append(f"💖 **{carta['name']}** cura a **{objetivo['name']}** por **{curacion} HP**.")
+
+    elif clase in ["foresser"]:
+        if random.random() < 0.3 + carta['int'] * 0.02:
+            carta['evade'] = True
+            registro.append(f"🌫️ **{carta['name']}** se prepara para esquivar el próximo ataque.")
+
+    elif clase in ["aura", "aura sparkling", "noble aura"]:
+        buff = 1 if clase == "aura" else 2 if clase == "aura sparkling" else 3
+        for ally in aliados:
+            if ally['hp'] > 0:
+                ally['atk'] += buff
+                ally['def'] += buff
+        registro.append(f"✨ **{carta['name']}** potencia al equipo (+{buff} ATK/DEF).")
+
+    elif clase in ["tank", "deflector"]:
+        carta['guard'] = True
+        registro.append(f"🛡️ **{carta['name']}** se prepara para proteger a su equipo.")
+
+@bot.tree.command(name="pvp", description="Combate automático contra otro jugador")
+@app_commands.describe(usuario="El usuario contra quien deseas luchar")
+async def pvp(interaction: discord.Interaction, usuario: discord.User):
+    uid1 = str(interaction.user.id)
+    uid2 = str(usuario.id)
+
+    team1_doc = user_teams.find_one({"discordID": uid1})
+    team2_doc = user_teams.find_one({"discordID": uid2})
+
+    if not team1_doc or not team2_doc:
+        await interaction.response.send_message("❌ Ambos jugadores deben tener un equipo formado.", ephemeral=True)
+        return
+
+    def cargar_equipo(doc):
+        cartas = []
+        for cid in doc['team']:
+            user_card = user_cards.find_one({"_id": cid})
+            core_card = core_cards.find_one({"_id": user_card['core_id']})
+
+            carta = {
+                "name": core_card['name'],
+                "atk": core_card['stats']['atk'],
+                "def": core_card['stats']['def'],
+                "vel": core_card['stats']['vel'],
+                "int": core_card['stats']['int'],
+                "hp": core_card['stats']['hp'],
+                "max_hp": core_card['stats']['hp'],
+                "role": core_card['role'],
+                "image": core_card['image']
+            }
+            cartas.append(carta)
+        return cartas
+
+    team1 = cargar_equipo(team1_doc)
+    team2 = cargar_equipo(team2_doc)
+
+    registro = []
+    turnos = 10
+
+    for _ in range(turnos):
+        todos = [c for c in team1 + team2 if c['hp'] > 0]
+        orden = calcular_turnos(todos)
+
+        for carta in orden:
+            if carta['hp'] <= 0: continue
+            aliados = team1 if carta in team1 else team2
+            enemigos = team2 if carta in team1 else team1
+
+            carta.pop('evade', None)
+            carta.pop('guard', None)
+
+            accionar(carta, aliados, enemigos, registro)
+
+            if not any(c['hp'] > 0 for c in team1) or not any(c['hp'] > 0 for c in team2):
+                break
+
+    ganador = "Empate"
+    if any(c['hp'] > 0 for c in team1) and not any(c['hp'] > 0 for c in team2):
+        ganador = interaction.user.mention
+    elif any(c['hp'] > 0 for c in team2) and not any(c['hp'] > 0 for c in team1):
+        ganador = usuario.mention
+
+    texto = f"🏆 Resultado: {ganador}\n\n" + "\n".join(registro[:15])
+    embed = discord.Embed(title="⚔️ Combate PvP", description=texto, color=discord.Color.gold())
+    embed.set_footer(text="Harem Party - PvP")
+
+    await interaction.response.send_message(embed=embed)
+
+
 def run_bot():
     asyncio.run(bot.start(TOKEN))
 
