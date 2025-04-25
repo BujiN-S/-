@@ -926,35 +926,38 @@ async def formacion(interaction: discord.Interaction, opcion: app_commands.Choic
         ephemeral=True
     )
 
-@bot.tree.command(name="equipo", description="Muestra tu equipo actual según tu formación.")
+@bot.tree.command(name="equipo", description="Muestra tu equipo actual.")
 async def equipo(interaction: discord.Interaction):
     uid = str(interaction.user.id)
     formation_doc = user_formations.find_one({"discordID": uid})
 
-    if not formation_doc or "formation" not in formation_doc:
-        return await interaction.response.send_message(
+    if not formation_doc:
+        await interaction.response.send_message(
             "❌ Aún no has elegido una formación. Usa `/formacion`.", ephemeral=True
         )
+        return
 
-    formation = formation_doc["formation"]
+    formation = formation_doc.get("formation", "")
     layout = {
-        "2F-1M-1B": ["Frontline", "Frontline", "Midline", "Backline"],
-        "1F-2M-1B": ["Frontline", "Midline", "Midline", "Backline"],
-        "1F-1M-2B": ["Frontline", "Midline", "Backline", "Backline"],
-        "2F-2M": ["Frontline", "Frontline", "Midline", "Midline"]
+        "defensiva": ["Frontline", "Frontline", "Midline", "Backline"],
+        "ofensiva": ["Frontline", "Midline", "Midline", "Backline"],
+        "versatil": ["Frontline", "Midline", "Backline", "Backline"]
     }
 
     if formation not in layout:
-        return await interaction.response.send_message(
+        await interaction.response.send_message(
             "❌ Formación no válida. Usa `/formacion` para elegir una correcta.", ephemeral=True
         )
+        return
 
     posiciones = layout[formation]
-    texto = "\n".join(f"{i+1}. {pos} — *(vacío)*" for i, pos in enumerate(posiciones))
+    contenido = ""
+    for i, pos in enumerate(posiciones):
+        contenido += f"{i+1}. {pos} — *(vacío)*\n"
 
     embed = discord.Embed(
-        title=f"📋 Formación actual: {formation}",
-        description=texto,
+        title=f"📋 Formación actual: {formation.capitalize()}",
+        description=contenido,
         color=discord.Color.blue()
     )
 
