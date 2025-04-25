@@ -21,6 +21,7 @@ shop_packs = db_collections["shop_packs"]
 user_packs = db_collections["user_packs"]
 user_formations = db_collections["user_formations"]
 user_teams = db_collections["user_teams"]
+pvp_queue = db_collections["pvp_queue"]
 
 def color_por_rango(rango):
     colores = {
@@ -1008,130 +1009,218 @@ async def equipo(interaction: Interaction):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# Estadísticas máximas por carta: ATK, DEF, VEL, INT, HP
+# ---------- Funciones auxiliares ----------
+def get_user_team(discord_id):
+    # Carga formación y team IDs
+    form_doc = user_formations.find_one({"discordID": discord_id})
+    team_doc = user_teams.find_one({"discordID": discord_id})
+    if not form_doc or not team_doc:
+        return []
+    card_ids = team_doc.get("team", [])
+    # Cargamos datos
+    team = []
+    for cid in card_ids:
+        u = user_cards.find_one({"cards.card_id": cid}, {"cards.$":1})
+        if not u: continue
+        inst = u["cards"][0]
+        core = core_cards.find_one({"core_id": inst["core_id"]})
+        if not core: continue
+        c = {
+            "name": core["name"],
+            "role": core["role"].lower(),
+            "atk": core["stats"]["atk"],
+            "def": core["stats"]["def"],
+            "vel": core["stats"]["vel"],
+            "int": core["stats"]["int"],
+            "hp": core["stats"]["hp"],
+            "max_hp": core["stats"]["hp"],
+        }
+        team.append(c)
+    return team
 
-def calcular_turnos(jugadores):
-    orden = []
-    for carta in jugadores:
-        prioridad = carta['vel'] + random.randint(0, 5)
-        orden.append((prioridad, carta))
-    orden.sort(reverse=True, key=lambda x: x[0])
-    return [c for _, c in orden]
+# ---------- Simulación de Combate ----------
+def simular_combate(e1, e2):
+    log = []
+    ronda = 1
+    cartas1 = [c.copy() for c in e1]
+    cartas2 = [c.copy() for c in e2]
 
-def accionar(carta, aliados, enemigos, registro):
-    clase = carta['class']
-    objetivo = None
+    while True:
+        log.append(f"⚔️ Ronda {ronda}")
+        pool = [(c,1) for c in cartas1 if c['hp']>0] + [(c,2) for c in cartas2 if c['hp']>0]
+        pool.sort(key=lambda x: x[0]['vel']+random.randint(0,3), reverse=True)
+        for carta, team in pool:
+            if carta['hp']<=0: continue
+            aliados = cartas1 if team==1 else cartas2
+            enemigos= cartas2 if team==1 else cartas1
+            vivos = [c for c in enemigos if c['hp']>0]
+            if not vivos:
+                ganador = "Equipo 1" if team==1 else "Equipo 2"
+                return ganador, log
+            objetivo = min(vivos, key=lambda x:x['hp'])
+            role = carta['role']
+            # Healer
+            if role=="healer":
+                heridos=[a for a in aliados if 0<a['hp']<a['max_hp']]
+                if heridos:
+                    a=random.choice(heridos)
+                    amt=int(a['max_hp']*0.2 + carta['int']*0.1)
+                    a['hp']=min(a['hp']+amt,a['max_hp'])
+                    log.append(f"🧪 {carta['name']} cura {a['name']} +{amt}HP")
+                    continue
+            # Radiant Healer
+            if role=="radiant healer":
+                heridos=[a for a in aliados if 0<a['hp']<a['max_hp']]
+                if heridos:
+                    a=random.choice(heridos)
+                    amt=int(a['max_hp']*0.4 + carta['int']*0.2)
+                    a['hp']=min(a['hp']+amt,a['max_hp'])
+                    log.append(f"💫 {carta['name']} radiante cura {a['name']} +{amt}HP")
+                    continue
+            # Tank
+            if role=="tank":
+                # absorbe daño, ataca normal
+                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
+                objetivo['hp']-=dmg
+                log.append(f"🛡️ {carta['name']} defiende y ataca {objetivo['name']} -{dmg}HP")
+                continue
+            # Deflector
+            if role=="deflector":
+                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
+                if random.random()<0.2:
+                    reflect=int(dmg*0.5)
+                    carta['hp']-=reflect
+                    log.append(f"🌀 {carta['name']} desvía y recibe {reflect}HP")
+                else:
+                    objetivo['hp']-=dmg
+                    log.append(f"🌀 {carta['name']} contragolpea {objetivo['name']} -{dmg}HP")
+                continue
+            # Slayer
+            if role=="slayer":
+                dmg=max(1,carta['atk']-int(objetivo['def']*0.3))
+                objetivo['hp']-=dmg
+                log.append(f"🔪 {carta['name']} slayer golpe a {objetivo['name']} -{dmg}HP")
+                continue
+            # Berserker
+            if role=="berserker":
+                dmg=int(max(1,carta['atk']-int(objetivo['def']*0.5))*1.2)
+                objetivo['hp']-=dmg
+                log.append(f"🔥 {carta['name']} furia a {objetivo['name']} -{dmg}HP")
+                continue
+            # Duelist
+            if role=="duelist":
+                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
+                if random.random()<0.3:
+                    dmg*=2
+                    log.append(f"🎯 {carta['name']} crítico a {objetivo['name']} -{dmg}HP")
+                else:
+                    objetivo['hp']-=dmg
+                    log.append(f"⚔️ {carta['name']} duelista a {objetivo['name']} -{dmg}HP")
+                continue
+            # Avenger
+            if role=="avenger":
+                muertos=sum(1 for a in aliados if a['hp']<=0)
+                dmg=max(1,carta['atk']+muertos*2-int(objetivo['def']*0.4))
+                objetivo['hp']-=dmg
+                log.append(f"😈 {carta['name']} venganza a {objetivo['name']} -{dmg}HP")
+                continue
+            # Foresser
+            if role=="foresser":
+                if random.random()<0.3+carta['int']*0.02:
+                    log.append(f"🔮 {carta['name']} evadió ataque")
+                    continue
+                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
+                objetivo['hp']-=dmg
+                log.append(f"👁️ {carta['name']} foresser ataca {objetivo['name']} -{dmg}HP")
+                continue
+            # Aura
+            if role=="aura":
+                for a in aliados:
+                    a['atk']+=1
+                log.append(f"✨ {carta['name']} aura +1ATK equipo")
+                continue
+            # Aura Sparkling
+            if role=="aura sparkling":
+                for a in aliados:
+                    a['atk']+=2
+                log.append(f"🌟 {carta['name']} aura sparkling +2ATK equipo")
+                continue
+            # Noble Aura
+            if role=="noble aura":
+                for a in aliados:
+                    a['atk']+=2; a['def']+=2
+                log.append(f"👑 {carta['name']} noble aura +2ATK/DEF equipo")
+                continue
+            # Default
+            dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
+            objetivo['hp']-=dmg
+            log.append(f"🔪 {carta['name']} ataca {objetivo['name']} -{dmg}HP")
+        ronda+=1
 
-    if clase in ["slayer", "berserker", "duelist", "avenger"]:
-        vivos = [e for e in enemigos if e['hp'] > 0]
-        if not vivos: return
-        objetivo = min(vivos, key=lambda x: x['hp']) if clase == "duelist" else random.choice(vivos)
+# Emparejamiento y comando PvP
+@bot.command()
+async def buscar_pvp(ctx):
+    uid=str(ctx.author.id)
+    # enqueue or match
+    rival=pvp_queue.find_one({"discordID":{"$ne":uid}})
+    if rival:
+        pvp_queue.delete_one({"discordID":rival['discordID']})
+        team1=get_user_team(uid)
+        team2=get_user_team(rival['discordID'])
+        ganador,log=simular_combate(team1,team2)
+        embed=discord.Embed(title="Resultado PvP",description="\n".join(log),color=0x00ff00)
+        embed.add_field(name="Ganador",value=ganador)
+        await ctx.send(embed=embed)
+    else:
+        pvp_queue.insert_one({"discordID":uid})
+        await ctx.send("⏳ Buscando oponente...")
 
-        bonus = carta['atk']
-        if clase == "avenger":
-            caidos = 4 - len([a for a in aliados if a['hp'] > 0])
-            bonus += caidos  # Se vuelve más fuerte
+# Función para cargar equipo del usuario
 
-        dano = max(1, bonus - objetivo['def'])
-        objetivo['hp'] -= dano
+def get_user_team(uid):
+    frm=user_formations.find_one({"discordID":uid})
+    doc=user_teams.find_one({"discordID":uid})
+    if not frm or not doc: return []
+    team=[]
+    for cid in doc['team']:
+        inst=user_cards.find_one({"cards.card_id":cid},{"cards.$":1})
+        core=core_cards.find_one({"core_id":inst['cards'][0]['core_id']})
+        team.append({
+            'name':core['name'],'role':core['role'].lower(),
+            'atk':core['stats']['atk'],'def':core['stats']['def'],
+            'vel':core['stats']['vel'],'int':core['stats']['int'],
+            'hp':core['stats']['hp'],'max_hp':core['stats']['hp']
+        })
+    return team
 
-        registro.append(f"⚔️ **{carta['name']}** ataca a **{objetivo['name']}** causando **{dano} de daño**.")
-
-    elif clase in ["healer", "radiant healer"]:
-        heridos = [a for a in aliados if a['hp'] < a['max_hp'] and a['hp'] > 0]
-        if not heridos: return
-        objetivo = min(heridos, key=lambda x: x['hp'])
-        ratio = 0.4 if clase == "radiant healer" else 0.2
-        curacion = int(objetivo['max_hp'] * ratio + carta['int'])
-        objetivo['hp'] = min(objetivo['max_hp'], objetivo['hp'] + curacion)
-
-        registro.append(f"💖 **{carta['name']}** cura a **{objetivo['name']}** por **{curacion} HP**.")
-
-    elif clase in ["foresser"]:
-        if random.random() < 0.3 + carta['int'] * 0.02:
-            carta['evade'] = True
-            registro.append(f"🌫️ **{carta['name']}** se prepara para esquivar el próximo ataque.")
-
-    elif clase in ["aura", "aura sparkling", "noble aura"]:
-        buff = 1 if clase == "aura" else 2 if clase == "aura sparkling" else 3
-        for ally in aliados:
-            if ally['hp'] > 0:
-                ally['atk'] += buff
-                ally['def'] += buff
-        registro.append(f"✨ **{carta['name']}** potencia al equipo (+{buff} ATK/DEF).")
-
-    elif clase in ["tank", "deflector"]:
-        carta['guard'] = True
-        registro.append(f"🛡️ **{carta['name']}** se prepara para proteger a su equipo.")
-
-@bot.tree.command(name="pvp", description="Combate automático contra otro jugador")
-@app_commands.describe(usuario="El usuario contra quien deseas luchar")
-async def pvp(interaction: discord.Interaction, usuario: discord.User):
+@bot.tree.command(name="pvp", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
+@app_commands.describe(jugador="Usuario al que quieres retar")
+async def pvp(interaction: discord.Interaction, jugador: discord.User):
     uid1 = str(interaction.user.id)
-    uid2 = str(usuario.id)
+    uid2 = str(jugador.id)
 
-    team1_doc = user_teams.find_one({"discordID": uid1})
-    team2_doc = user_teams.find_one({"discordID": uid2})
+    # Carga los equipos de ambos jugadores
+    team1 = get_user_team(uid1)
+    team2 = get_user_team(uid2)
 
-    if not team1_doc or not team2_doc:
-        await interaction.response.send_message("❌ Ambos jugadores deben tener un equipo formado.", ephemeral=True)
-        return
+    if not team1 or not team2:
+        return await interaction.response.send_message(
+            "❌ Ambos jugadores deben tener un equipo configurado. Usa `/equipo` o `/formacion`.", 
+            ephemeral=True
+        )
 
-    def cargar_equipo(doc):
-        cartas = []
-        for cid in doc['team']:
-            user_card = user_cards.find_one({"_id": cid})
-            core_card = core_cards.find_one({"_id": user_card['core_id']})
+    # Simula el combate
+    ganador, log = simular_combate(team1, team2)
 
-            carta = {
-                "name": core_card['name'],
-                "atk": core_card['stats']['atk'],
-                "def": core_card['stats']['def'],
-                "vel": core_card['stats']['vel'],
-                "int": core_card['stats']['int'],
-                "hp": core_card['stats']['hp'],
-                "max_hp": core_card['stats']['hp'],
-                "role": core_card['role'],
-                "image": core_card['image']
-            }
-            cartas.append(carta)
-        return cartas
-
-    team1 = cargar_equipo(team1_doc)
-    team2 = cargar_equipo(team2_doc)
-
-    registro = []
-    turnos = 10
-
-    for _ in range(turnos):
-        todos = [c for c in team1 + team2 if c['hp'] > 0]
-        orden = calcular_turnos(todos)
-
-        for carta in orden:
-            if carta['hp'] <= 0: continue
-            aliados = team1 if carta in team1 else team2
-            enemigos = team2 if carta in team1 else team1
-
-            carta.pop('evade', None)
-            carta.pop('guard', None)
-
-            accionar(carta, aliados, enemigos, registro)
-
-            if not any(c['hp'] > 0 for c in team1) or not any(c['hp'] > 0 for c in team2):
-                break
-
-    ganador = "Empate"
-    if any(c['hp'] > 0 for c in team1) and not any(c['hp'] > 0 for c in team2):
-        ganador = interaction.user.mention
-    elif any(c['hp'] > 0 for c in team2) and not any(c['hp'] > 0 for c in team1):
-        ganador = usuario.mention
-
-    texto = f"🏆 Resultado: {ganador}\n\n" + "\n".join(registro[:15])
-    embed = discord.Embed(title="⚔️ Combate PvP", description=texto, color=discord.Color.gold())
-    embed.set_footer(text="Harem Party - PvP")
+    # Construye el embed de resultado
+    embed = discord.Embed(
+        title="🏆 Resultado del Combate PvP",
+        color=discord.Color.purple()
+    )
+    embed.add_field(name="Ganador", value=ganador, inline=False)
+    embed.add_field(name="Resumen", value="\n".join(log), inline=False)
 
     await interaction.response.send_message(embed=embed)
-
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
