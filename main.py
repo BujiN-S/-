@@ -1184,18 +1184,16 @@ def get_user_team(uid: str):
         })
     return team
 
-# ——— Comando slash para buscar PvP ———
 @bot.tree.command(name="buscar_pvp", description="Busca un oponente PvP aleatorio usando tu equipo configurado.")
 async def buscar_pvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
-    # Intentamos emparejar con alguien que ya esté en cola
+    # Intentamos emparejar con alguien distinto en la cola
     rival = pvp_queue.find_one({"discordID": {"$ne": uid}})
     if rival:
-        # Lo quitamos de la cola
+        # Lo sacamos de la cola y simulamos combate
         pvp_queue.delete_one({"discordID": rival["discordID"]})
 
-        # Cargamos ambos equipos
         team1 = get_user_team(uid)
         team2 = get_user_team(rival["discordID"])
         if not team1 or not team2:
@@ -1203,19 +1201,15 @@ async def buscar_pvp(interaction: discord.Interaction):
                 "❌ Ambos jugadores deben tener un equipo configurado.", ephemeral=True
             )
 
-        # Simulamos combate
         ganador, log = simular_combate(team1, team2)
 
-        # Enviamos resultado público
-        embed = discord.Embed(
-            title="🏆 Resultado PvP",
-            description="\n".join(log),
-            color=discord.Color.green()
-        )
-        embed.add_field(name="Ganador", value=ganador, inline=False)
-        return await interaction.response.send_message(embed=embed)
+        # Enviamos resultado y narración completa en un solo mensaje
+        salida = f"🏆 Ganador: **{ganador}**\n\n" + "\n".join(log)
+        if len(salida) > 1900:
+            salida = salida[:1900] + "\n...(más pasos omitidos)"
+        return await interaction.response.send_message(salida)
 
-    # Si no hay rival, nos ponemos en cola
+    # Si no había nadie, nos metemos en cola
     pvp_queue.insert_one({"discordID": uid})
     await interaction.response.send_message(
         "⏳ Te has unido a la cola de PvP. Esperando oponente...", ephemeral=True
