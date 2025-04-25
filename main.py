@@ -926,53 +926,69 @@ async def formacion(interaction: discord.Interaction, opcion: app_commands.Choic
         ephemeral=True
     )
 
-# /equipo
-@bot.tree.command(name="equipo",description="Rellena tu plantilla con IDs de cartas")
+@bot.tree.command(name="equipo", description="Arma tu equipo actual según tu formación.")
 @app_commands.describe(
-    frontline1="ID de Frontline 1", frontline2="ID de Frontline 2",
-    midline1="ID de Midline 1",     midline2="ID de Midline 2",
-    backline1="ID de Backline 1",   backline2="ID de Backline 2",
+    carta1="ID de la carta para el primer espacio",
+    carta2="ID para el segundo espacio",
+    carta3="ID para el tercero",
+    carta4="ID para el cuarto"
 )
 async def equipo(
     interaction: discord.Interaction,
-    frontline1: str, frontline2: str=None,
-    midline1: str=None,   midline2: str=None,
-    backline1: str=None,  backline2: str=None,
+    carta1: str,
+    carta2: str,
+    carta3: str,
+    carta4: str
 ):
-    await interaction.response.defer(ephemeral=True)
-    # 1) plantilla
-    rec = user_formations.find_one({"user_id":str(interaction.user.id)})
-    if not rec:
-        return await interaction.followup.send("❌ Primero usa `/formacion`", ephemeral=True)
-    tpl = FORMATION_TEMPLATES[rec["template_key"]]
+    uid = str(interaction.user.id)
+    formation_doc = user_formations.find_one({"discordID": uid})
+    if not formation_doc or "formation" not in formation_doc:
+        return await interaction.response.send_message("❌ Aún no has elegido una formación. Usa `/formacion`.", ephemeral=True)
 
-    # 2) recolectar IDs
-    zones = {
-        "frontline":[frontline1,frontline2],
-        "midline":  [midline1,  midline2],
-        "backline": [backline1, backline2],
+    formation = formation_doc["formation"]
+
+    # Espacios por formación
+    formation_slots = {
+        "2F-1M-1B": ["Frontline", "Frontline", "Midline", "Backline"],
+        "1F-2M-1B": ["Frontline", "Midline", "Midline", "Backline"],
+        "1F-1M-2B": ["Frontline", "Midline", "Backline", "Backline"],
     }
-    team = {}
-    for z,need in tpl.items():
-        vals = [v for v in zones[z] if v]
-        if len(vals)!=need:
-            return await interaction.followup.send(
-                f"❌ Tu plantilla necesita {need} IDs en **{z}**, pero diste {len(vals)}.",
-                ephemeral=True
-            )
-        team[z]=vals
+    positions = formation_slots.get(formation)
+    if not positions:
+        return await interaction.response.send_message("❌ Formación no válida. Usa `/formacion` para elegir una válida.", ephemeral=True)
 
-    # 3) guardar y responder
+    # Obtener las cartas del usuario
+    user_doc = user_cards.find_one({"discordID": uid})
+    if not user_doc or "cards" not in user_doc:
+        return await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
+
+    all_card_ids = {c["card_id"]: c for c in user_doc["cards"]}
+    selected_ids = [carta1, carta2, carta3, carta4]
+
+    # Verificar que las cartas existan
+    team = []
+    for cid in selected_ids:
+        if cid not in all_card_ids:
+            return await interaction.response.send_message(f"❌ No tienes una carta con ID `{cid}`.", ephemeral=True)
+        team.append(all_card_ids[cid])
+
+    # Guardar el equipo en la base de datos
     user_teams.update_one(
-        {"user_id":str(interaction.user.id)},
-        {"$set":{"team":team}},
+        {"discordID": uid},
+        {"$set": {"formation": formation, "team": team}},
         upsert=True
     )
-    texto="✅ Equipo guardado:\n"
-    for z,ids in team.items():
-        texto+=f"**{z.title()}**: {', '.join(ids)}\n"
-    await interaction.followup.send(texto, ephemeral=True)
 
+    lines = [
+        f"{positions[i]}: {team[i]['name']} [{team[i]['rank']}]"
+        for i in range(4)
+    ]
+    embed = discord.Embed(
+        title="✅ Equipo guardado",
+        description="\n".join(lines),
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
