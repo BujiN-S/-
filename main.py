@@ -1019,7 +1019,7 @@ def calcular_turnos(jugadores):
     return [c for _, c in orden]
 
 def accionar(carta, aliados, enemigos, registro):
-    clase = carta['role']
+    clase = carta['class']
     objetivo = None
 
     if clase in ["slayer", "berserker", "duelist", "avenger"]:
