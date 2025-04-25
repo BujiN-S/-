@@ -926,41 +926,26 @@ async def formacion(interaction: discord.Interaction, opcion: app_commands.Choic
         ephemeral=True
     )
 
-@bot.tree.command(name="equipo", description="Muestra tu equipo actual.")
+@bot.tree.command(name="equipo", description="Muestra tu formación y slots vacíos.")
 async def equipo(interaction: discord.Interaction):
     uid = str(interaction.user.id)
-    formation_doc = user_formations.find_one({"discordID": uid})
+    doc = user_formations.find_one({"discordID": uid})
 
-    if not formation_doc:
-        await interaction.response.send_message(
-            "❌ Aún no has elegido una formación. Usa `/formacion`.", ephemeral=True
+    if not doc or "formation" not in doc:
+        return await interaction.response.send_message(
+            "❌ No tienes formación guardada. Usa `/formacion`.", ephemeral=True
         )
-        return
 
-    formation = formation_doc.get("formation", "")
-    layout = {
-        "defensiva": ["Frontline", "Frontline", "Midline", "Backline"],
-        "ofensiva": ["Frontline", "Midline", "Midline", "Backline"],
-        "versatil": ["Frontline", "Midline", "Backline", "Backline"]
-    }
-
-    if formation not in layout:
-        await interaction.response.send_message(
-            "❌ Formación no válida. Usa `/formacion` para elegir una correcta.", ephemeral=True
-        )
-        return
-
-    posiciones = layout[formation]
-    contenido = ""
-    for i, pos in enumerate(posiciones):
-        contenido += f"{i+1}. {pos} — *(vacío)*\n"
+    slots = doc["formation"]  # esto es ya un list como ["frontline","frontline","midline","backline"]
+    texto = ""
+    for idx, rol in enumerate(slots, start=1):
+        texto += f"{idx}. {rol.capitalize()} — *(vacío)*\n"
 
     embed = discord.Embed(
-        title=f"📋 Formación actual: {formation.capitalize()}",
-        description=contenido,
+        title="📋 Formación actual",
+        description=texto,
         color=discord.Color.blue()
     )
-
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 def run_bot():
