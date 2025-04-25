@@ -1158,40 +1158,76 @@ def simular_combate(e1, e2):
         ronda+=1
 
 # Emparejamiento y comando PvP
-@bot.command()
-async def buscar_pvp(ctx):
-    uid=str(ctx.author.id)
-    # enqueue or match
-    rival=pvp_queue.find_one({"discordID":{"$ne":uid}})
-    if rival:
-        pvp_queue.delete_one({"discordID":rival['discordID']})
-        team1=get_user_team(uid)
-        team2=get_user_team(rival['discordID'])
-        ganador,log=simular_combate(team1,team2)
-        embed=discord.Embed(title="Resultado PvP",description="\n".join(log),color=0x00ff00)
-        embed.add_field(name="Ganador",value=ganador)
-        await ctx.send(embed=embed)
-    else:
-        pvp_queue.insert_one({"discordID":uid})
-        await ctx.send("⏳ Buscando oponente...")
+from discord import app_commands
+from discord.ext import commands
+import discord
+import random
 
-# Función para cargar equipo del usuario
+bot = commands.Bot(command_prefix="!")
 
-def get_user_team(uid):
-    frm=user_formations.find_one({"discordID":uid})
-    doc=user_teams.find_one({"discordID":uid})
-    if not frm or not doc: return []
-    team=[]
-    for cid in doc['team']:
-        inst=user_cards.find_one({"cards.card_id":cid},{"cards.$":1})
-        core=core_cards.find_one({"core_id":inst['cards'][0]['core_id']})
+# ——— Función para cargar el equipo del usuario ———
+def get_user_team(uid: str):
+    frm = user_formations.find_one({"discordID": uid})
+    doc = user_teams.find_one({"discordID": uid})
+    if not frm or not doc:
+        return []
+
+    team = []
+    for cid in doc["team"]:
+        inst = user_cards.find_one({"cards.card_id": cid}, {"cards.$": 1})
+        if not inst: 
+            continue
+        core = core_cards.find_one({"core_id": inst["cards"][0]["core_id"]})
+        if not core:
+            continue
         team.append({
-            'name':core['name'],'role':core['role'].lower(),
-            'atk':core['stats']['atk'],'def':core['stats']['def'],
-            'vel':core['stats']['vel'],'int':core['stats']['int'],
-            'hp':core['stats']['hp'],'max_hp':core['stats']['hp']
+            "name": core["name"],
+            "role": core["role"].lower(),
+            "atk": core["stats"]["atk"],
+            "def": core["stats"]["def"],
+            "vel": core["stats"]["vel"],
+            "int": core["stats"]["int"],
+            "hp": core["stats"]["hp"],
+            "max_hp": core["stats"]["hp"]
         })
     return team
+
+# ——— Comando slash para buscar PvP ———
+@bot.tree.command(name="buscar_pvp", description="Busca un oponente PvP aleatorio usando tu equipo configurado.")
+async def buscar_pvp(interaction: discord.Interaction):
+    uid = str(interaction.user.id)
+
+    # Intentamos emparejar con alguien que ya esté en cola
+    rival = pvp_queue.find_one({"discordID": {"$ne": uid}})
+    if rival:
+        # Lo quitamos de la cola
+        pvp_queue.delete_one({"discordID": rival["discordID"]})
+
+        # Cargamos ambos equipos
+        team1 = get_user_team(uid)
+        team2 = get_user_team(rival["discordID"])
+        if not team1 or not team2:
+            return await interaction.response.send_message(
+                "❌ Ambos jugadores deben tener un equipo configurado.", ephemeral=True
+            )
+
+        # Simulamos combate
+        ganador, log = simular_combate(team1, team2)
+
+        # Enviamos resultado público
+        embed = discord.Embed(
+            title="🏆 Resultado PvP",
+            description="\n".join(log),
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Ganador", value=ganador, inline=False)
+        return await interaction.response.send_message(embed=embed)
+
+    # Si no hay rival, nos ponemos en cola
+    pvp_queue.insert_one({"discordID": uid})
+    await interaction.response.send_message(
+        "⏳ Te has unido a la cola de PvP. Esperando oponente...", ephemeral=True
+    )
 
 @bot.tree.command(name="pvp", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
 @app_commands.describe(jugador="Usuario al que quieres retar")
