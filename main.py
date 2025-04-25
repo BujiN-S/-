@@ -891,30 +891,38 @@ async def vender(interaction: Interaction, id: str):
 @app_commands.describe(opcion="Selecciona una formación predeterminada.")
 @app_commands.choices(
     opcion=[
-        app_commands.Choice(name="Ofensiva", value="ofensiva"),
-        app_commands.Choice(name="Equilibrada", value="equilibrada"),
-        app_commands.Choice(name="Defensiva", value="defensiva"),
-        app_commands.Choice(name="Versátil", value="versátil"),
+        app_commands.Choice(name="Defensiva", value="defensiva"),   # 2 frontline
+        app_commands.Choice(name="Ofensiva", value="ofensiva"),     # 2 midline
+        app_commands.Choice(name="Versátil", value="versatil"),     # 1/1/2 distribuidos
     ]
 )
 async def formacion(interaction: discord.Interaction, opcion: app_commands.Choice[str]):
     uid = str(interaction.user.id)
 
     formaciones = {
-        "ofensiva": ["frontline", "frontline", "midline", "backline"],
-        "equilibrada": ["frontline", "midline", "midline", "backline"],
-        "defensiva": ["frontline", "midline", "backline", "backline"],
-        "versátil": ["frontline", "midline", "backline", "midline"]
+        "defensiva": {
+            "slots": ["frontline", "frontline", "midline", "backline"],
+            "desc": "🛡️ 2 defensores al frente, ideal para resistir."
+        },
+        "ofensiva": {
+            "slots": ["frontline", "midline", "midline", "backline"],
+            "desc": "🔥 Prioriza ataque con más ofensiva en el medio."
+        },
+        "versatil": {
+            "slots": ["frontline", "midline", "backline", "backline"],
+            "desc": "🔄 Buena rotación con retaguardia reforzada."
+        },
     }
 
+    formacion = formaciones[opcion.value]
     user_formations.update_one(
         {"discordID": uid},
-        {"$set": {"formation": formaciones[opcion.value]}},
+        {"$set": {"formation": formacion["slots"]}},
         upsert=True
     )
 
     await interaction.response.send_message(
-        f"✅ Formación **{opcion.name}** seleccionada correctamente.",
+        f"✅ Elegiste la formación **{opcion.name}**\n{formacion['desc']}",
         ephemeral=True
     )
 
