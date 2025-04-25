@@ -926,72 +926,37 @@ async def formacion(interaction: discord.Interaction, opcion: app_commands.Choic
         ephemeral=True
     )
 
-@bot.tree.command(name="equipo", description="Arma tu equipo actual según tu formación.")
-@app_commands.describe(
-    carta1="ID de la carta para el primer espacio",
-    carta2="ID para el segundo espacio",
-    carta3="ID para el tercero",
-    carta4="ID para el cuarto"
-)
-async def equipo(
-    interaction: discord.Interaction,
-    carta1: str,
-    carta2: str,
-    carta3: str,
-    carta4: str
-):
-    await interaction.response.defer(ephemeral=True)  # <- Espera segura para evitar fallo silencioso
+@bot.tree.command(name="equipo", description="Muestra tu equipo actual basado en tu formación.")
+async def equipo(interaction: discord.Interaction):
     uid = str(interaction.user.id)
-    print(f"Usuario: {uid}")
-
     formation_doc = user_formations.find_one({"discordID": uid})
+
     if not formation_doc or "formation" not in formation_doc:
-        return await interaction.followup.send("❌ Aún no has elegido una formación. Usa `/formacion`.")
+        return await interaction.response.send_message(
+            "❌ Aún no has elegido una formación. Usa `/formacion`.", ephemeral=True
+        )
 
     formation = formation_doc["formation"]
-    print(f"Formación actual: {formation}")
-
-    formation_slots = {
+    layout = {
         "2F-1M-1B": ["Frontline", "Frontline", "Midline", "Backline"],
         "1F-2M-1B": ["Frontline", "Midline", "Midline", "Backline"],
         "1F-1M-2B": ["Frontline", "Midline", "Backline", "Backline"],
-        "2F-2M": ["Frontline", "Frontline", "Midline", "Midline"],
+        "2F-2M": ["Frontline", "Frontline", "Midline", "Midline"]
     }
-    positions = formation_slots.get(formation)
-    if not positions:
-        return await interaction.followup.send("❌ Formación no válida. Usa `/formacion` para elegir una válida.")
 
-    user_doc = user_cards.find_one({"discordID": uid})
-    if not user_doc or "cards" not in user_doc:
-        return await interaction.followup.send("❌ No tienes cartas en tu colección.")
+    if formation not in layout:
+        return await interaction.response.send_message(
+            "❌ La formación guardada no es válida.", ephemeral=True
+        )
 
-    all_card_ids = {c["card_id"]: c for c in user_doc["cards"]}
-    selected_ids = [carta1, carta2, carta3, carta4]
-    print(f"IDs seleccionadas: {selected_ids}")
+    lines = [f"{i+1}. {role} — *(vacío)*" for i, role in enumerate(layout[formation])]
 
-    team = []
-    for cid in selected_ids:
-        if cid not in all_card_ids:
-            return await interaction.followup.send(f"❌ No tienes una carta con ID `{cid}`.")
-        team.append(all_card_ids[cid])
-
-    user_teams.update_one(
-        {"discordID": uid},
-        {"$set": {"formation": formation, "team": team}},
-        upsert=True
-    )
-    print("Equipo guardado correctamente.")
-
-    lines = [
-        f"{positions[i]}: {team[i]['name']} [{team[i]['rank']}]"
-        for i in range(4)
-    ]
     embed = discord.Embed(
-        title="✅ Equipo guardado",
+        title=f"🛡️ Formación actual: {formation}",
         description="\n".join(lines),
         color=discord.Color.green()
     )
-    await interaction.followup.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
