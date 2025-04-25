@@ -926,7 +926,7 @@ async def formacion(interaction: discord.Interaction, opcion: app_commands.Choic
         ephemeral=True
     )
 
-@bot.tree.command(name="equipo", description="Muestra tu equipo actual basado en tu formación.")
+@bot.tree.command(name="equipo", description="Muestra tu equipo actual según tu formación.")
 async def equipo(interaction: discord.Interaction):
     uid = str(interaction.user.id)
     formation_doc = user_formations.find_one({"discordID": uid})
@@ -946,16 +946,18 @@ async def equipo(interaction: discord.Interaction):
 
     if formation not in layout:
         return await interaction.response.send_message(
-            "❌ La formación guardada no es válida.", ephemeral=True
+            "❌ Formación no válida. Usa `/formacion` para elegir una correcta.", ephemeral=True
         )
 
-    lines = [f"{i+1}. {role} — *(vacío)*" for i, role in enumerate(layout[formation])]
+    posiciones = layout[formation]
+    texto = "\n".join(f"{i+1}. {pos} — *(vacío)*" for i, pos in enumerate(posiciones))
 
     embed = discord.Embed(
-        title=f"🛡️ Formación actual: {formation}",
-        description="\n".join(lines),
-        color=discord.Color.green()
+        title=f"📋 Formación actual: {formation}",
+        description=texto,
+        color=discord.Color.blue()
     )
+
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 def run_bot():
