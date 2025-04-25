@@ -1157,14 +1157,6 @@ def simular_combate(e1, e2):
             log.append(f"🔪 {carta['name']} ataca {objetivo['name']} -{dmg}HP")
         ronda+=1
 
-# Emparejamiento y comando PvP
-from discord import app_commands
-from discord.ext import commands
-import discord
-import random
-
-bot = commands.Bot(command_prefix="!")
-
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
     frm = user_formations.find_one({"discordID": uid})
