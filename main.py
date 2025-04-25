@@ -1184,8 +1184,8 @@ def get_user_team(uid: str):
         })
     return team
 
-@bot.tree.command(name="buscar_pvp", description="Busca un oponente PvP aleatorio usando tu equipo configurado.")
-async def buscar_pvp(interaction: discord.Interaction):
+@bot.tree.command(name="duelopvp", description="Busca un oponente PvP aleatorio usando tu equipo configurado.")
+async def duelopvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
     # Intentamos emparejar con alguien distinto en la cola
