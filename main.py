@@ -926,25 +926,85 @@ async def formacion(interaction: discord.Interaction, opcion: app_commands.Choic
         ephemeral=True
     )
 
-@bot.tree.command(name="equipo", description="Muestra tu formación y slots vacíos.")
-async def equipo(interaction: discord.Interaction):
+@bot.tree.command(name="asignar", description="Asigna una carta a un slot de tu formación.")
+@app_commands.describe(
+    slot="Número de slot (1 a 4) según tu formación",
+    id="ID de la carta que quieres asignar"
+)
+async def asignar(interaction: Interaction, slot: int, id: str):
     uid = str(interaction.user.id)
-    doc = user_formations.find_one({"discordID": uid})
-
-    if not doc or "formation" not in doc:
+    # 1) Formación
+    fdoc = user_formations.find_one({"discordID": uid})
+    if not fdoc or "formation" not in fdoc:
         return await interaction.response.send_message(
-            "❌ No tienes formación guardada. Usa `/formacion`.", ephemeral=True
+            "❌ Primero elige tu formación con `/formacion`.", ephemeral=True
+        )
+    slots = fdoc["formation"]
+    if slot < 1 or slot > len(slots):
+        return await interaction.response.send_message(
+            f"❌ Slot inválido. Usa un número entre 1 y {len(slots)}.", ephemeral=True
         )
 
-    slots = doc["formation"]  # esto es ya un list como ["frontline","frontline","midline","backline"]
-    texto = ""
-    for idx, rol in enumerate(slots, start=1):
-        texto += f"{idx}. {rol.capitalize()} — *(vacío)*\n"
+    # 2) Comprueba que tienes esa carta
+    udoc = user_cards.find_one({"discordID": uid})
+    your_cards = {str(c["card_id"]): c for c in udoc.get("cards", [])} if udoc else {}
+    if id not in your_cards:
+        return await interaction.response.send_message(
+            f"❌ No encontré la carta con ID `{id}` en tu colección.", ephemeral=True
+        )
 
-    embed = discord.Embed(
-        title="📋 Formación actual",
-        description=texto,
-        color=discord.Color.blue()
+    # 3) Recupera o crea tu team
+    tdoc = user_teams.find_one({"discordID": uid})
+    if not tdoc or "team" not in tdoc:
+        team = [""] * len(slots)
+    else:
+        team = tdoc["team"]
+
+    # 4) Asigna y guarda
+    team[slot-1] = id
+    user_teams.update_one(
+        {"discordID": uid},
+        {"$set": {"team": team}},
+        upsert=True
+    )
+
+    await interaction.response.send_message(
+        f"✅ Carta `{id}` asignada al slot {slot} ({slots[slot-1].capitalize()}).",
+        ephemeral=True
+    )
+
+@bot.tree.command(name="equipo", description="Muestra tu formación y cartas asignadas.")
+async def equipo(interaction: Interaction):
+    uid = str(interaction.user.id)
+    fdoc = user_formations.find_one({"discordID": uid})
+    if not fdoc or "formation" not in fdoc:
+        return await interaction.response.send_message(
+            "❌ Primero elige tu formación con `/formacion`.", ephemeral=True
+        )
+    slots = fdoc["formation"]
+
+    tdoc = user_teams.find_one({"discordID": uid})
+    team = tdoc.get("team", [""] * len(slots)) if tdoc else [""] * len(slots)
+
+    # Prepara texto
+    lines = []
+    # para buscar datos de las cartas
+    udoc = user_cards.find_one({"discordID": uid}) or {}
+    your_cards = {str(c["card_id"]): c for c in udoc.get("cards", [])}
+    for idx, role in enumerate(slots, start=1):
+        cid = team[idx-1]
+        if cid and cid in your_cards:
+            c = your_cards[cid]
+            lines.append(
+                f"{idx}. {role.capitalize()} — {c['name']} [{c['rank']}]"
+            )
+        else:
+            lines.append(f"{idx}. {role.capitalize()} — *(vacío)*")
+
+    embed = Embed(
+        title="📋 Tu equipo actual",
+        description="\n".join(lines),
+        color=Color.blue()
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
