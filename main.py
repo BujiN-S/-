@@ -891,9 +891,9 @@ async def vender(interaction: Interaction, id: str):
 @app_commands.describe(opcion="Selecciona una formación predeterminada.")
 @app_commands.choices(
     opcion=[
-        app_commands.Choice(name="Defensiva", value="defensiva"),   # 2 frontline
-        app_commands.Choice(name="Ofensiva", value="ofensiva"),     # 2 midline
-        app_commands.Choice(name="Versátil", value="versatil"),     # 1/1/2 distribuidos
+        app_commands.Choice(name="🛡️ Defensiva — 2 frontlines, 1 midline, 1 backline", value="defensiva"),
+        app_commands.Choice(name="🔥 Ofensiva — 1 frontline, 2 midlines, 1 backline", value="ofensiva"),
+        app_commands.Choice(name="🔄 Versátil — 1 forntline, 1 midline, 2 backlines", value="versatil"),
     ]
 )
 async def formacion(interaction: discord.Interaction, opcion: app_commands.Choice[str]):
@@ -922,7 +922,7 @@ async def formacion(interaction: discord.Interaction, opcion: app_commands.Choic
     )
 
     await interaction.response.send_message(
-        f"✅ Elegiste la formación **{opcion.name}**\n{formacion['desc']}",
+        f"✅ Elegiste la formación **{opcion.name.split('—')[0].strip()}**\n{formacion['desc']}",
         ephemeral=True
     )
 
