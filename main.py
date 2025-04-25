@@ -940,44 +940,47 @@ async def equipo(
     carta3: str,
     carta4: str
 ):
+    await interaction.response.defer(ephemeral=True)  # <- Espera segura para evitar fallo silencioso
     uid = str(interaction.user.id)
+    print(f"Usuario: {uid}")
+
     formation_doc = user_formations.find_one({"discordID": uid})
     if not formation_doc or "formation" not in formation_doc:
-        return await interaction.response.send_message("❌ Aún no has elegido una formación. Usa `/formacion`.", ephemeral=True)
+        return await interaction.followup.send("❌ Aún no has elegido una formación. Usa `/formacion`.")
 
     formation = formation_doc["formation"]
+    print(f"Formación actual: {formation}")
 
-    # Espacios por formación
     formation_slots = {
         "2F-1M-1B": ["Frontline", "Frontline", "Midline", "Backline"],
         "1F-2M-1B": ["Frontline", "Midline", "Midline", "Backline"],
         "1F-1M-2B": ["Frontline", "Midline", "Backline", "Backline"],
+        "2F-2M": ["Frontline", "Frontline", "Midline", "Midline"],
     }
     positions = formation_slots.get(formation)
     if not positions:
-        return await interaction.response.send_message("❌ Formación no válida. Usa `/formacion` para elegir una válida.", ephemeral=True)
+        return await interaction.followup.send("❌ Formación no válida. Usa `/formacion` para elegir una válida.")
 
-    # Obtener las cartas del usuario
     user_doc = user_cards.find_one({"discordID": uid})
     if not user_doc or "cards" not in user_doc:
-        return await interaction.response.send_message("❌ No tienes cartas en tu colección.", ephemeral=True)
+        return await interaction.followup.send("❌ No tienes cartas en tu colección.")
 
     all_card_ids = {c["card_id"]: c for c in user_doc["cards"]}
     selected_ids = [carta1, carta2, carta3, carta4]
+    print(f"IDs seleccionadas: {selected_ids}")
 
-    # Verificar que las cartas existan
     team = []
     for cid in selected_ids:
         if cid not in all_card_ids:
-            return await interaction.response.send_message(f"❌ No tienes una carta con ID `{cid}`.", ephemeral=True)
+            return await interaction.followup.send(f"❌ No tienes una carta con ID `{cid}`.")
         team.append(all_card_ids[cid])
 
-    # Guardar el equipo en la base de datos
     user_teams.update_one(
         {"discordID": uid},
         {"$set": {"formation": formation, "team": team}},
         upsert=True
     )
+    print("Equipo guardado correctamente.")
 
     lines = [
         f"{positions[i]}: {team[i]['name']} [{team[i]['rank']}]"
@@ -988,7 +991,7 @@ async def equipo(
         description="\n".join(lines),
         color=discord.Color.green()
     )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    await interaction.followup.send(embed=embed)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
