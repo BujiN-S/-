@@ -1280,9 +1280,8 @@ def simular_combate(e1, e2):
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
-    # 1) Busca formación y team-doc
-    frm = user_formations.find_one({"discordID": uid})
-    tdoc = user_teams.find_one({"discordID": uid})
+    frm  = user_formations.find_one({"discordID": uid})
+    tdoc = user_teams   .find_one({"discordID": uid})
     if not frm or not tdoc:
         return []
 
@@ -1290,25 +1289,18 @@ def get_user_team(uid: str):
     if not raw:
         return []
 
-    # 2) Normaliza a lista de IDs según el formato
-    if isinstance(raw, dict):
-        # dict viejo: {"frontline":[...], "midline":[...], ...}
-        card_ids = []
-        for slot in frm.get("formation", []):
-            vals = raw.get(slot, [])
-            # toma el primer elemento o string vacío
-            card_ids.append(str(vals[0]) if isinstance(vals, list) and vals else "")
-    elif isinstance(raw, list):
-        # lista nueva: ["id1","id2",...]
-        card_ids = raw
-    else:
-        return []
+    # raw ya es lista de strings como ['6','4',...]
+    card_ids = []
+    for cid in raw:
+        # convierte a int si es dígito, o úsalo tal cual
+        try:
+            cid_val = int(cid)
+        except (ValueError, TypeError):
+            cid_val = cid
+        card_ids.append(cid_val)
 
-    # 3) Carga cada carta real por su card_id
     team = []
     for cid in card_ids:
-        if not cid:
-            continue
         inst = user_cards.find_one({"cards.card_id": cid}, {"cards.$": 1})
         if not inst:
             continue
