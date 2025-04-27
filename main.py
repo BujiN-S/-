@@ -1336,9 +1336,11 @@ async def duelopvp(interaction: discord.Interaction):
         return await interaction.response.send_message("⏳ Ya estás en la cola PvP, esperando rival...", ephemeral=True)
 
     pvp_queue.append(uid)
-    await interaction.response.send_message("🎯 Entraste en la cola PvP. Esperando rival...", ephemeral=True)
 
-    # Esperar máximo 15 segundos para encontrar rival
+    # 🔥 Nuevo: defer la respuesta inmediatamente
+    await interaction.response.defer(ephemeral=True)
+
+    # Ahora tenemos tiempo para buscar rival
     max_wait_time = 15
     waited = 0
     interval = 3
@@ -1350,7 +1352,6 @@ async def duelopvp(interaction: discord.Interaction):
         if len(pvp_queue) >= 2:
             break
 
-    # Si hay suficientes jugadores
     if len(pvp_queue) >= 2:
         p1 = pvp_queue.pop(0)
         p2 = pvp_queue.pop(0)
@@ -1364,7 +1365,6 @@ async def duelopvp(interaction: discord.Interaction):
         if error2:
             return await interaction.followup.send(error2, ephemeral=True)
 
-        # ⚡ Corrección: usar simular_combate
         try:
             resultado = simular_combate(team1, team2)
         except Exception as e:
@@ -1379,7 +1379,6 @@ async def duelopvp(interaction: discord.Interaction):
 
         await interaction.followup.send(mensaje)
     else:
-        # Si no se encontró rival después de esperar
         pvp_queue.remove(uid)
         await interaction.followup.send("❗ No se encontró rival en la cola PvP. Intenta más tarde.", ephemeral=True)
 
