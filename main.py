@@ -1324,73 +1324,75 @@ def get_user_team(uid: str):
 
     return team, None
 
-@bot.tree.command(name="duelopvp", description="Busca un oponente PvP aleatorio usando tu equipo configurado.")
+@bot.tree.command(name="duelopvp", description="Entra en la cola PvP para luchar contra otro jugador.")
 async def duelopvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
-    # Primero verificamos que tenga equipo antes de todo
-    team1 = get_user_team(uid)
-    if not team1:
-        return await interaction.response.send_message(
-            "❌ No tienes un equipo configurado. Usa `/formacion` y `/equipo` para prepararlo.",
-            ephemeral=True
-        )
+    team1, error = get_user_team(uid)
+    if error:
+        return await interaction.response.send_message(error, ephemeral=True)
 
-    # Intentamos emparejar con alguien distinto en la cola
-    rival = pvp_queue.find_one({"discordID": {"$ne": uid}})
-    if rival:
-        # Lo sacamos de la cola y simulamos combate
-        pvp_queue.delete_one({"discordID": rival["discordID"]})
+    if uid in pvp_queue:
+        return await interaction.response.send_message("⏳ Ya estás en la cola PvP, esperando rival...", ephemeral=True)
 
-        team1 = get_user_team(uid)
-        team2 = get_user_team(rival["discordID"])
-        if not team1 or not team2:
-            return await interaction.response.send_message(
-                "❌ Ambos jugadores deben tener un equipo configurado.", ephemeral=True
-            )
+    pvp_queue.append(uid)
+    await interaction.response.send_message("🎯 Entraste en la cola PvP. Esperando rival...", ephemeral=True)
 
-        ganador, log = simular_combate(team1, team2)
+    await asyncio.sleep(3)  # Simula espera corta de matchmaking
 
-        # Enviamos resultado y narración completa en un solo mensaje
-        salida = f"🏆 Ganador: **{ganador}**\n\n" + "\n".join(log)
-        if len(salida) > 1900:
-            salida = salida[:1900] + "\n...(más pasos omitidos)"
-        return await interaction.response.send_message(salida)
+    if len(pvp_queue) >= 2:
+        p1 = pvp_queue.pop(0)
+        p2 = pvp_queue.pop(0)
 
-    # Si no había nadie, nos metemos en cola
-    pvp_queue.insert_one({"discordID": uid})
-    await interaction.response.send_message(
-        "⏳ Te has unido a la cola de PvP. Esperando oponente...", ephemeral=True
-    )
+        if p1 == uid:
+            rival = p2
+        else:
+            rival = p1
 
-@bot.tree.command(name="pvp", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
-@app_commands.describe(jugador="Usuario al que quieres retar")
-async def pvp(interaction: discord.Interaction, jugador: discord.User):
+        team2, error2 = get_user_team(rival)
+        if error2:
+            return await interaction.followup.send(error2, ephemeral=True)
+
+        # Ejecutar el combate
+        resultado = simular_batalla_pvp(team1, team2)
+
+        if resultado == "empate":
+            mensaje = "🤝 ¡La batalla terminó en empate!"
+        elif resultado == "jugador1":
+            mensaje = f"🏆 ¡{interaction.user.mention} ganó el duelo!"
+        else:
+            mensaje = f"🏆 ¡El rival ganó el duelo!"
+
+        await interaction.followup.send(mensaje)
+
+@bot.tree.command(name="pvp", description="Desafía directamente a otro usuario a un duelo PvP.")
+@app_commands.describe(usuario="Mención del usuario a desafiar.")
+async def pvp(interaction: discord.Interaction, usuario: discord.Member):
     uid1 = str(interaction.user.id)
-    uid2 = str(jugador.id)
+    uid2 = str(usuario.id)
 
-    # Carga los equipos de ambos jugadores
-    team1 = get_user_team(uid1)
-    team2 = get_user_team(uid2)
+    if uid1 == uid2:
+        return await interaction.response.send_message("❗ No puedes desafiarte a ti mismo.", ephemeral=True)
 
-    if not team1 or not team2:
+    team1, error1 = get_user_team(uid1)
+    team2, error2 = get_user_team(uid2)
+
+    if error1 or error2:
         return await interaction.response.send_message(
-            "❌ Ambos jugadores deben tener un equipo configurado. Usa `/equipo` o `/formacion`.", 
+            error1 or error2,
             ephemeral=True
         )
 
-    # Simula el combate
-    ganador, log = simular_combate(team1, team2)
+    resultado = simular_batalla_pvp(team1, team2)
 
-    # Construye el embed de resultado
-    embed = discord.Embed(
-        title="🏆 Resultado del Combate PvP",
-        color=discord.Color.purple()
-    )
-    embed.add_field(name="Ganador", value=ganador, inline=False)
-    embed.add_field(name="Resumen", value="\n".join(log), inline=False)
+    if resultado == "empate":
+        mensaje = "🤝 ¡La batalla terminó en empate!"
+    elif resultado == "jugador1":
+        mensaje = f"🏆 ¡{interaction.user.mention} ganó el duelo!"
+    else:
+        mensaje = f"🏆 ¡{usuario.mention} ganó el duelo!"
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message(mensaje)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
