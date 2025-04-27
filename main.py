@@ -1282,13 +1282,15 @@ def simular_combate(e1, e2):
 def get_user_team(uid: str):
     frm = user_formations.find_one({"discordID": uid})
     doc = user_teams.find_one({"discordID": uid})
-    if not frm or not doc:
+    if not frm or not doc or not any(doc.get("team", [])):
         return []
 
     team = []
     for cid in doc["team"]:
+        if not cid:
+            continue  # Salta slots vacíos
         inst = user_cards.find_one({"cards.card_id": cid}, {"cards.$": 1})
-        if not inst: 
+        if not inst:
             continue
         core = core_cards.find_one({"core_id": inst["cards"][0]["core_id"]})
         if not core:
