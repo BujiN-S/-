@@ -1354,7 +1354,7 @@ async def duelopvp(interaction: discord.Interaction):
             return await interaction.followup.send(error2, ephemeral=True)
 
         # Ejecutar el combate
-        resultado = simular_batalla_pvp(team1, team2)
+        resultado = simular_combate(team1, team2)
 
         if resultado == "empate":
             mensaje = "🤝 ¡La batalla terminó en empate!"
@@ -1365,15 +1365,13 @@ async def duelopvp(interaction: discord.Interaction):
 
         await interaction.followup.send(mensaje)
 
-@bot.tree.command(name="pvp", description="Desafía directamente a otro usuario a un duelo PvP.")
-@app_commands.describe(usuario="Mención del usuario a desafiar.")
-async def pvp(interaction: discord.Interaction, usuario: discord.Member):
+@bot.tree.command(name="pvp", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
+@app_commands.describe(jugador="Usuario al que quieres retar")
+async def pvp(interaction: discord.Interaction, jugador: discord.User):
     uid1 = str(interaction.user.id)
-    uid2 = str(usuario.id)
+    uid2 = str(jugador.id)
 
-    if uid1 == uid2:
-        return await interaction.response.send_message("❗ No puedes desafiarte a ti mismo.", ephemeral=True)
-
+    # Carga los equipos de ambos jugadores
     team1, error1 = get_user_team(uid1)
     team2, error2 = get_user_team(uid2)
 
@@ -1383,16 +1381,18 @@ async def pvp(interaction: discord.Interaction, usuario: discord.Member):
             ephemeral=True
         )
 
-    resultado = simular_batalla_pvp(team1, team2)
+    # Simula el combate
+    ganador, log = simular_combate(team1, team2)
 
-    if resultado == "empate":
-        mensaje = "🤝 ¡La batalla terminó en empate!"
-    elif resultado == "jugador1":
-        mensaje = f"🏆 ¡{interaction.user.mention} ganó el duelo!"
-    else:
-        mensaje = f"🏆 ¡{usuario.mention} ganó el duelo!"
+    # Construye el embed de resultado
+    embed = discord.Embed(
+        title="🏆 Resultado del Combate PvP",
+        color=discord.Color.purple()
+    )
+    embed.add_field(name="Ganador", value=ganador, inline=False)
+    embed.add_field(name="Resumen", value="\n".join(log), inline=False)
 
-    await interaction.response.send_message(mensaje)
+    await interaction.response.send_message(embed=embed)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
