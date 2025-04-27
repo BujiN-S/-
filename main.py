@@ -1009,6 +1009,127 @@ async def equipo(interaction: Interaction):
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
+@bot.tree.command(name="intercambiar", description="Intercambia dos cartas de tu equipo entre slots.")
+@app_commands.describe(
+    slot1="Primer slot que quieres intercambiar",
+    slot2="Segundo slot que quieres intercambiar"
+)
+async def intercambiar(interaction: discord.Interaction, slot1: int, slot2: int):
+    uid = str(interaction.user.id)
+
+    # Verificamos formación activa
+    fdoc = user_formations.find_one({"discordID": uid})
+    if not fdoc or "formation" not in fdoc:
+        return await interaction.response.send_message(
+            "❌ No tienes formación activa. Usa `/formacion` primero.", ephemeral=True
+        )
+    slots = fdoc["formation"]
+
+    # Validamos números
+    if slot1 < 1 or slot1 > len(slots) or slot2 < 1 or slot2 > len(slots):
+        return await interaction.response.send_message(
+            f"❌ Los slots deben ser entre 1 y {len(slots)}.", ephemeral=True
+        )
+
+    if slot1 == slot2:
+        return await interaction.response.send_message(
+            "❌ No puedes intercambiar el mismo slot.", ephemeral=True
+        )
+
+    # Cargamos el equipo
+    tdoc = user_teams.find_one({"discordID": uid})
+    if not tdoc or "team" not in tdoc:
+        return await interaction.response.send_message(
+            "❌ No tienes cartas asignadas todavía.", ephemeral=True
+        )
+
+    team = tdoc["team"]
+
+    # Intercambiamos
+    team[slot1-1], team[slot2-1] = team[slot2-1], team[slot1-1]
+
+    # Guardamos
+    user_teams.update_one(
+        {"discordID": uid},
+        {"$set": {"team": team}}
+    )
+
+    await interaction.response.send_message(
+        f"✅ Intercambiadas las cartas del slot {slot1} y slot {slot2}.",
+        ephemeral=True
+    )
+
+@bot.tree.command(name="vaciar_equipo", description="Vacía completamente tu equipo actual.")
+async def vaciar_equipo(interaction: discord.Interaction):
+    uid = str(interaction.user.id)
+
+    # Verificamos si el usuario tiene formación
+    fdoc = user_formations.find_one({"discordID": uid})
+    if not fdoc or "formation" not in fdoc:
+        return await interaction.response.send_message(
+            "❌ No tienes formación activa. Usa `/formacion` primero.", ephemeral=True
+        )
+    slots = fdoc["formation"]
+
+    # Creamos un equipo vacío del mismo tamaño
+    equipo_vacio = [""] * len(slots)
+
+    user_teams.update_one(
+        {"discordID": uid},
+        {"$set": {"team": equipo_vacio}},
+        upsert=True
+    )
+
+    await interaction.response.send_message(
+        "✅ Tu equipo ha sido vaciado exitosamente.",
+        ephemeral=True
+    )
+
+@bot.tree.command(name="remover", description="Remueve una carta de tu equipo en un slot específico.")
+@app_commands.describe(slot="Número de slot (1 a 4) que quieres liberar")
+async def remover(interaction: discord.Interaction, slot: int):
+    uid = str(interaction.user.id)
+
+    # 1) Formación
+    fdoc = user_formations.find_one({"discordID": uid})
+    if not fdoc or "formation" not in fdoc:
+        return await interaction.response.send_message(
+            "❌ Primero elige tu formación con `/formacion`.", ephemeral=True
+        )
+    slots = fdoc["formation"]
+    if slot < 1 or slot > len(slots):
+        return await interaction.response.send_message(
+            f"❌ Slot inválido. Usa un número entre 1 y {len(slots)}.", ephemeral=True
+        )
+
+    # 2) Recupera el team
+    tdoc = user_teams.find_one({"discordID": uid})
+    if not tdoc or "team" not in tdoc:
+        return await interaction.response.send_message(
+            "❌ No tienes cartas asignadas todavía.", ephemeral=True
+        )
+    team = tdoc["team"]
+
+    if team[slot-1] == "":
+        return await interaction.response.send_message(
+            f"❌ El slot {slot} ya está vacío.", ephemeral=True
+        )
+
+    # 3) Remover carta
+    carta_removida = team[slot-1]
+    team[slot-1] = ""
+
+    # 4) Guardar cambios
+    user_teams.update_one(
+        {"discordID": uid},
+        {"$set": {"team": team}}
+    )
+
+    await interaction.response.send_message(
+        f"✅ Carta `{carta_removida}` removida del slot {slot} ({slots[slot-1].capitalize()}).",
+        ephemeral=True
+    )
+
 # ---------- Funciones auxiliares ----------
 def get_user_team(discord_id):
     # Carga formación y team IDs
