@@ -1280,33 +1280,34 @@ def simular_combate(e1, e2):
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
-    frm  = user_formations.find_one({"discordID": uid})
-    tdoc = user_teams   .find_one({"discordID": uid})
+    frm = user_formations.find_one({"discordID": uid})
+    tdoc = user_teams.find_one({"discordID": uid})
     if not frm or not tdoc:
-        return []
+        return None, "❌ No tienes un equipo formado aún."
 
     raw = tdoc.get("team")
     if not raw:
-        return []
+        return None, "❌ No tienes cartas en tu equipo."
 
-    # raw ya es lista de strings como ['6','4',...]
-    card_ids = []
+    # 🚫 Si hay algún slot vacío, error explícito
+    if any(not cid for cid in raw):
+        return None, "❗ No puedes jugar: tienes un slot vacío en tu equipo."
+
+    team = []
     for cid in raw:
-        # convierte a int si es dígito, o úsalo tal cual
         try:
             cid_val = int(cid)
         except (ValueError, TypeError):
             cid_val = cid
-        card_ids.append(cid_val)
 
-    team = []
-    for cid in card_ids:
-        inst = user_cards.find_one({"cards.card_id": cid}, {"cards.$": 1})
+        inst = user_cards.find_one({"cards.card_id": cid_val}, {"cards.$": 1})
         if not inst:
             continue
-        core = core_cards.find_one({"core_id": inst["cards"][0]["core_id"]})
+
+        core = core_cards.find_one({"id": inst["cards"][0]["core_id"]})
         if not core:
             continue
+
         team.append({
             "name":   core["name"],
             "role":   core["role"].lower(),
@@ -1317,7 +1318,11 @@ def get_user_team(uid: str):
             "hp":     core["stats"]["hp"],
             "max_hp": core["stats"]["hp"],
         })
-    return team
+
+    if not team:
+        return None, "⚠️ No pude construir tu equipo."
+
+    return team, None
 
 @bot.tree.command(name="duelopvp", description="Busca un oponente PvP aleatorio usando tu equipo configurado.")
 async def duelopvp(interaction: discord.Interaction):
