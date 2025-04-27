@@ -1188,6 +1188,14 @@ def get_user_team(uid: str):
 async def duelopvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
+    # Primero verificamos que tenga equipo antes de todo
+    team1 = get_user_team(uid)
+    if not team1:
+        return await interaction.response.send_message(
+            "❌ No tienes un equipo configurado. Usa `/formacion` y `/equipo` para prepararlo.",
+            ephemeral=True
+        )
+
     # Intentamos emparejar con alguien distinto en la cola
     rival = pvp_queue.find_one({"discordID": {"$ne": uid}})
     if rival:
