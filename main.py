@@ -1280,30 +1280,46 @@ def simular_combate(e1, e2):
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
-    frm = user_formations.find_one({"discordID": uid})
-    doc = user_teams.find_one({"discordID": uid})
-    if not frm or not doc or not any(doc.get("team", [])):
+    frm     = user_formations.find_one({"discordID": uid})
+    tdoc    = user_teams.find_one    ({"discordID": uid})
+    if not frm or not tdoc:
         return []
+    raw = tdoc.get("team", [])
 
+    # --- Migrate old dict-format to a flat list in memory ---
+    # si es dict: { "frontline":[id1,id2], "midline":[…], … }
+    if isinstance(raw, dict):
+        card_ids = []
+        for slot in frm["formation"]:
+            ids = raw.get(slot, [])
+            card_ids.append(ids[0] if isinstance(ids, list) and ids else "")
+    else:
+        # ya es lista
+        card_ids = raw
+
+    # Ahora sí cargamos las cartas
     team = []
-    for cid in doc["team"]:
+    for cid in card_ids:
         if not cid:
-            continue  # Salta slots vacíos
-        inst = user_cards.find_one({"cards.card_id": cid}, {"cards.$": 1})
+            continue
+        inst = user_cards.find_one(
+            {"cards.card_id": cid},
+            {"cards.$": 1}
+        )
         if not inst:
             continue
         core = core_cards.find_one({"core_id": inst["cards"][0]["core_id"]})
         if not core:
             continue
         team.append({
-            "name": core["name"],
-            "role": core["role"].lower(),
-            "atk": core["stats"]["atk"],
-            "def": core["stats"]["def"],
-            "vel": core["stats"]["vel"],
-            "int": core["stats"]["int"],
-            "hp": core["stats"]["hp"],
-            "max_hp": core["stats"]["hp"]
+            "name":   core["name"],
+            "role":   core["role"].lower(),
+            "atk":    core["stats"]["atk"],
+            "def":    core["stats"]["def"],
+            "vel":    core["stats"]["vel"],
+            "int":    core["stats"]["int"],
+            "hp":     core["stats"]["hp"],
+            "max_hp": core["stats"]["hp"],
         })
     return team
 
