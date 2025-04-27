@@ -1338,8 +1338,19 @@ async def duelopvp(interaction: discord.Interaction):
     pvp_queue.append(uid)
     await interaction.response.send_message("🎯 Entraste en la cola PvP. Esperando rival...", ephemeral=True)
 
-    await asyncio.sleep(3)  # Simula espera corta de matchmaking
+    # Esperar máximo 15 segundos para encontrar rival
+    max_wait_time = 15
+    waited = 0
+    interval = 3
 
+    while waited < max_wait_time:
+        await asyncio.sleep(interval)
+        waited += interval
+
+        if len(pvp_queue) >= 2:
+            break
+
+    # Si hay suficientes jugadores
     if len(pvp_queue) >= 2:
         p1 = pvp_queue.pop(0)
         p2 = pvp_queue.pop(0)
@@ -1353,8 +1364,11 @@ async def duelopvp(interaction: discord.Interaction):
         if error2:
             return await interaction.followup.send(error2, ephemeral=True)
 
-        # Ejecutar el combate
-        resultado = simular_combate(team1, team2)
+        # ⚡ Corrección: usar simular_combate
+        try:
+            resultado = simular_combate(team1, team2)
+        except Exception as e:
+            return await interaction.followup.send(f"❗ Error interno: `{str(e)}`", ephemeral=True)
 
         if resultado == "empate":
             mensaje = "🤝 ¡La batalla terminó en empate!"
@@ -1364,6 +1378,10 @@ async def duelopvp(interaction: discord.Interaction):
             mensaje = f"🏆 ¡El rival ganó el duelo!"
 
         await interaction.followup.send(mensaje)
+    else:
+        # Si no se encontró rival después de esperar
+        pvp_queue.remove(uid)
+        await interaction.followup.send("❗ No se encontró rival en la cola PvP. Intenta más tarde.", ephemeral=True)
 
 @bot.tree.command(name="pvp", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
 @app_commands.describe(jugador="Usuario al que quieres retar")
