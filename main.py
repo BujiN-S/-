@@ -1369,6 +1369,95 @@ async def narrar_combate(interaction, log, ganador, jugador1, jugador2, mención
 
     await msg.edit(content=titulo + mensaje_final)
 
+async def buscar_combate():
+    while len(pvp_queue) >= 2:
+        jugador1 = pvp_queue.pop(0)
+        jugador2 = pvp_queue.pop(0)
+
+        uid1 = jugador1["user_id"]
+        uid2 = jugador2["user_id"]
+        interaction1 = jugador1["interaction"]
+        interaction2 = jugador2["interaction"]
+
+        rival1 = await bot.fetch_user(int(uid1))
+        rival2 = await bot.fetch_user(int(uid2))
+
+        # Verificar equipos
+        team1, error1 = get_user_team(uid1)
+        team2, error2 = get_user_team(uid2)
+
+        if error1 or error2:
+            if error1:
+                await interaction1.followup.send(error1)
+            if error2:
+                await interaction2.followup.send(error2)
+            return
+
+        # Avisar a ambos que tienen rival
+        await interaction1.followup.send(f"⚔️ ¡Te enfrentas a {rival2.display_name}!", ephemeral=False)
+        await interaction2.followup.send(f"⚔️ ¡Te enfrentas a {rival1.display_name}!", ephemeral=False)
+
+        # Iniciar combate paralelo
+        asyncio.create_task(combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2))
+
+async def combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2):
+    try:
+        ganador, log = simular_combate(team1, team2)
+    except Exception as e:
+        await interaction1.followup.send(f"❗ Error interno: {str(e)}")
+        await interaction2.followup.send(f"❗ Error interno: {str(e)}")
+        return
+
+    await narrar_combate_dual(interaction1, interaction2, log, ganador, rival1, rival2)
+
+async def narrar_combate_dual(interaction1, interaction2, log, ganador, jugador1, jugador2):
+    titulo = f"⚔️ {jugador1.display_name} vs {jugador2.display_name}\n\n"
+    contenido = titulo + "🏁 ¡El combate ha comenzado!"
+    
+    msg1 = await interaction1.followup.send(content=contenido)
+    msg2 = await interaction2.followup.send(content=contenido)
+
+    for evento in log:
+        await asyncio.sleep(1.5)  # Aquí puedes ajustar el tiempo de narración
+        nuevo_contenido = titulo + evento
+        await msg1.edit(content=nuevo_contenido)
+        await msg2.edit(content=nuevo_contenido)
+
+    await asyncio.sleep(2)
+
+    if ganador == "empate":
+        resultado = "🤝 ¡El combate terminó en empate!"
+    elif ganador == "Equipo 1":
+        resultado = f"🏆 ¡{jugador1.display_name} ha ganado el duelo!"
+    else:
+        resultado = f"🏆 ¡{jugador2.display_name} ha ganado el duelo!"
+
+    await msg1.edit(content=titulo + resultado)
+    await msg2.edit(content=titulo + resultado)
+
+async def narrar_combate_simple(interaction, log, ganador, jugador1, jugador2):
+    titulo = f"⚔️ {jugador1} vs {jugador2}\n\n"
+    contenido = titulo + "🏁 ¡El combate ha comenzado!"
+    
+    msg = await interaction.followup.send(content=contenido)
+
+    for evento in log:
+        await asyncio.sleep(1.5)
+        nuevo_contenido = titulo + evento
+        await msg.edit(content=nuevo_contenido)
+
+    await asyncio.sleep(2)
+
+    if ganador == "empate":
+        resultado = "🤝 ¡El combate terminó en empate!"
+    elif ganador == "Equipo 1":
+        resultado = f"🏆 ¡{jugador1} ha ganado el duelo!"
+    else:
+        resultado = f"🏆 ¡{jugador2} ha ganado el duelo!"
+
+    await msg.edit(content=titulo + resultado)
+
+
 pvp_queue = []
 
 # ——— Función para cargar el equipo del usuario ———
@@ -1417,81 +1506,26 @@ def get_user_team(uid: str):
 
     return team, None
 
-@bot.tree.command(name="pvp", description="Entra en la cola PvP para luchar contra otro jugador.")
+@bot.tree.command(name="pvp", description="Entra en la cola PvP para luchar automáticamente.")
 async def pvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
-    # Verificar si ya tenés equipo
+    # Verificar si ya tienes equipo
     team1, error = get_user_team(uid)
     if error:
         return await interaction.response.send_message(error, ephemeral=True)
 
-    # Verificar si ya estás en la cola
-    if uid in pvp_queue:
-        return await interaction.response.send_message(
-            "⏳ Ya estás esperando en la cola PvP...", ephemeral=True
-        )
+    # Verificar si ya estás en cola
+    if any(entry["user_id"] == uid for entry in pvp_queue):
+        return await interaction.response.send_message("⏳ Ya estás esperando en la cola PvP...", ephemeral=True)
 
-    # Añadir a la cola
-    pvp_queue.append(uid)
+    # Agregar a la cola
+    pvp_queue.append({"user_id": uid, "interaction": interaction})
 
-    await interaction.response.send_message("⏳ Buscando oponente para ti...", ephemeral=True)
+    await interaction.response.send_message("🔵 Te uniste a la cola PvP. Esperando rival...", ephemeral=True)
 
-    max_wait_time = 30  # 🔥 Máximo 30 segundos de espera
-    waited = 0
-    interval = 3  # Cada cuánto revisamos
-    rival = None
-
-    while waited < max_wait_time:
-        await asyncio.sleep(interval)
-        waited += interval
-
-        # ¿Hay 2 jugadores en la cola?
-        if len(pvp_queue) >= 2:
-            # Elegir rival que no seas vos mismo
-            for candidate in pvp_queue:
-                if candidate != uid:
-                    rival = candidate
-                    break
-            if rival:
-                break
-
-    if rival:
-        # Sacar a ambos de la cola
-        pvp_queue.remove(uid)
-        pvp_queue.remove(rival)
-
-        # Verificar equipos de nuevo por seguridad
-        team2, error2 = get_user_team(rival)
-        if error2:
-            return await interaction.followup.send(error2, ephemeral=True)
-
-        await interaction.followup.send(f"⚔️ ¡Encontraste rival! Preparando combate...", ephemeral=True)
-        
-        rival_member = await bot.fetch_user(int(rival))
-
-        # Simular combate
-        try:
-            ganador, log = simular_combate(team1, team2)
-        except Exception as e:
-            return await interaction.followup.send(f"❗ Error interno durante el combate: `{str(e)}`", ephemeral=True)
-
-        # Mostrar narración de combate
-        await narrar_combate(
-            interaction,
-            log,
-            ganador,
-            jugador1=interaction.user.display_name,
-            jugador2=rival_member.display_name,
-            mención1=interaction.user.mention,
-            mención2=rival_member.mention
-        )
-
-    else:
-        # Si no hubo rival, eliminar al usuario
-        if uid in pvp_queue:
-            pvp_queue.remove(uid)
-        await interaction.followup.send("❗ No se encontró rival en la cola PvP. Intenta más tarde.", ephemeral=True)
+    # Lanzar búsqueda automática
+    asyncio.create_task(buscar_combate())
 
 @bot.tree.command(name="duel", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
 @app_commands.describe(jugador="Usuario al que quieres retar")
@@ -1511,17 +1545,14 @@ async def pvp(interaction: discord.Interaction, jugador: discord.User):
 
     # Simula el combate
     ganador, log = simular_combate(team1, team2)
-    await narrar_combate(
+    await narrar_combate_simple(
         interaction,
         log,
         ganador,
         jugador1=interaction.user.display_name,
-        jugador2=jugador.display_name,
-        mención1=interaction.user.mention,
-        mención2=jugador.mention
+        jugador2=jugador.display_name
     )
 
-    # Construye el embed de resultado
     embed = discord.Embed(
         title="🏆 Resultado del Combate PvP",
         color=discord.Color.purple()
