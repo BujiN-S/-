@@ -1346,25 +1346,26 @@ def simular_combate(e1, e2):
 
         ronda += 1
 
-async def narrar_combate(interaction, log, ganador):
-    # Empezamos el combate
-    await interaction.followup.send("⚔️ ¡El combate ha comenzado!", ephemeral=True)
+async def narrar_combate(interaction, log, ganador, jugador1, jugador2):
+    titulo = f"⚔️ {jugador1} vs {jugador2}\n"
+    contenido = titulo + "🏁 ¡El combate ha comenzado!"
+    msg = await interaction.followup.send(content=contenido, ephemeral=True)
 
     for evento in log:
-        await asyncio.sleep(1.5)  # espera entre líneas
-        await interaction.followup.send(evento, ephemeral=True)
+        await asyncio.sleep(1.5)
+        nuevo_contenido = titulo + evento
+        await msg.edit(content=nuevo_contenido)
 
-    # Al final anunciar el resultado
-    await asyncio.sleep(2)  # espera final para dramatismo
+    await asyncio.sleep(2)
 
     if ganador == "empate":
         mensaje_final = "🤝 ¡El combate terminó en empate!"
     elif ganador == "Equipo 1":
-        mensaje_final = "🏆 ¡El Equipo 1 ha vencido en la batalla!"
+        mensaje_final = f"🏆 ¡{jugador1} ha ganado el duelo!"
     else:
-        mensaje_final = "🏆 ¡El Equipo 2 se alza con la victoria!"
+        mensaje_final = f"🏆 ¡{jugador2} ha ganado el duelo!"
 
-    await interaction.followup.send(mensaje_final, ephemeral=True)
+    await msg.edit(content=titulo + mensaje_final)
 
 pvp_queue = []
 
