@@ -1530,20 +1530,19 @@ async def pvp(interaction: discord.Interaction):
 @bot.tree.command(name="duel", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
 @app_commands.describe(jugador="Usuario al que quieres retar")
 async def duel(interaction: discord.Interaction, jugador: discord.User):
+    await interaction.response.defer()  # 🔥 Muy importante defer apenas empieza
+
     uid1 = str(interaction.user.id)
     uid2 = str(jugador.id)
 
-    # Carga los equipos de ambos jugadores
     team1, error1 = get_user_team(uid1)
     team2, error2 = get_user_team(uid2)
 
     if error1 or error2:
-        return await interaction.response.send_message(
-            error1 or error2,
-            ephemeral=True
+        return await interaction.followup.send(  # 🔥 Ahora usamos followup, no response
+            error1 or error2
         )
 
-    # Simula el combate
     ganador, log = simular_combate(team1, team2)
     await narrar_combate_simple(
         interaction,
