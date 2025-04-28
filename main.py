@@ -1464,6 +1464,7 @@ pvp_queue = []
 def get_user_team(uid: str):
     frm = user_formations.find_one({"discordID": uid})
     tdoc = user_teams.find_one({"discordID": uid})
+
     if not frm or not tdoc:
         return None, "❌ No tienes un equipo formado aún."
 
@@ -1471,8 +1472,8 @@ def get_user_team(uid: str):
     if not raw:
         return None, "❌ No tienes cartas en tu equipo."
 
-    # 🚫 Si hay algún slot vacío, error explícito
-    if any(not cid for cid in raw):
+    # 🚫 Si hay algún slot vacío explícito
+    if any(cid is None or cid == "" for cid in raw):
         return None, "❗ No puedes jugar: tienes un slot vacío en tu equipo."
 
     team = []
@@ -1480,15 +1481,15 @@ def get_user_team(uid: str):
         try:
             cid_val = int(cid)
         except (ValueError, TypeError):
-            cid_val = cid
+            cid_val = cid  # por si acaso ya es str
 
         inst = user_cards.find_one({"cards.card_id": cid_val}, {"cards.$": 1})
-        if not inst:
-            continue
+        if not inst or not inst.get("cards"):
+            continue  # si no se encuentra la instancia, saltarlo
 
         core = core_cards.find_one({"id": inst["cards"][0]["core_id"]})
         if not core:
-            continue
+            continue  # si no se encuentra el core, también saltarlo
 
         team.append({
             "name":   core["name"],
