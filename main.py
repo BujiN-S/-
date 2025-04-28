@@ -1418,7 +1418,7 @@ def get_user_team(uid: str):
     return team, None
 
 @bot.tree.command(name="pvp", description="Entra en la cola PvP para luchar contra otro jugador.")
-async def duelopvp(interaction: discord.Interaction, jugador: discord.User):
+async def pvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
     # Verificar si ya tenés equipo
@@ -1467,6 +1467,8 @@ async def duelopvp(interaction: discord.Interaction, jugador: discord.User):
             return await interaction.followup.send(error2, ephemeral=True)
 
         await interaction.followup.send(f"⚔️ ¡Encontraste rival! Preparando combate...", ephemeral=True)
+        
+        rival_member = await bot.fetch_user(int(rival))
 
         # Simular combate
         try:
@@ -1480,9 +1482,9 @@ async def duelopvp(interaction: discord.Interaction, jugador: discord.User):
             log,
             ganador,
             jugador1=interaction.user.display_name,
-            jugador2=jugador.display_name,
+            jugador2=rival_member.display_name,
             mención1=interaction.user.mention,
-            mención2=jugador.mention
+            mención2=rival_member.mention
         )
 
     else:
