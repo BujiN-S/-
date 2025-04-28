@@ -1160,123 +1160,211 @@ def get_user_team(discord_id):
     return team
 
 # ---------- Simulación de Combate ----------
+
 def simular_combate(e1, e2):
     log = []
     ronda = 1
     cartas1 = [c.copy() for c in e1]
     cartas2 = [c.copy() for c in e2]
 
+    frases_ronda = [
+        "Comienza una nueva ronda de enfrentamientos.",
+        "Las cartas se preparan para otra batalla feroz.",
+        "Una nueva ronda inicia: cada movimiento puede ser decisivo."
+    ]
+
     while True:
-        log.append(f"⚔️ Ronda {ronda}")
-        pool = [(c,1) for c in cartas1 if c['hp']>0] + [(c,2) for c in cartas2 if c['hp']>0]
-        pool.sort(key=lambda x: x[0]['vel']+random.randint(0,3), reverse=True)
+        log.append(random.choice(frases_ronda) + f" (Ronda {ronda})")
+
+        pool = [(c, 1) for c in cartas1 if c['hp'] > 0] + [(c, 2) for c in cartas2 if c['hp'] > 0]
+        pool.sort(key=lambda x: x[0]['vel'] + random.randint(0, 3), reverse=True)
+
         for carta, team in pool:
-            if carta['hp']<=0: continue
-            aliados = cartas1 if team==1 else cartas2
-            enemigos= cartas2 if team==1 else cartas1
-            vivos = [c for c in enemigos if c['hp']>0]
+            if carta['hp'] <= 0:
+                continue
+
+            aliados = cartas1 if team == 1 else cartas2
+            enemigos = cartas2 if team == 1 else cartas1
+            vivos = [c for c in enemigos if c['hp'] > 0]
+
             if not vivos:
-                ganador = "Equipo 1" if team==1 else "Equipo 2"
+                ganador = "Equipo 1" if team == 1 else "Equipo 2"
                 return ganador, log
-            objetivo = min(vivos, key=lambda x:x['hp'])
+
+            objetivo = min(vivos, key=lambda x: x['hp'])
             role = carta['role']
-            # Healer
-            if role=="healer":
-                heridos=[a for a in aliados if 0<a['hp']<a['max_hp']]
+
+            # Frases por tipo de acción
+            if role == "healer":
+                heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp']]
                 if heridos:
-                    a=random.choice(heridos)
-                    amt=int(a['max_hp']*0.2 + carta['int']*0.1)
-                    a['hp']=min(a['hp']+amt,a['max_hp'])
-                    log.append(f"🧪 {carta['name']} cura {a['name']} +{amt}HP")
+                    a = random.choice(heridos)
+                    amt = int(a['max_hp'] * 0.2 + carta['int'] * 0.1)
+                    a['hp'] = min(a['hp'] + amt, a['max_hp'])
+                    frases = [
+                        "{carta} restauró la vitalidad de {a}, curándolo +{amt}HP.",
+                        "{carta} lanzó un hechizo curativo sobre {a}, recuperando +{amt}HP.",
+                        "{carta} atendió las heridas de {a}, sanándolo +{amt}HP."
+                    ]
+                    log.append(random.choice(frases).format(carta=carta["name"], a=a["name"], amt=amt))
                     continue
-            # Radiant Healer
-            if role=="radiant healer":
-                heridos=[a for a in aliados if 0<a['hp']<a['max_hp']]
+
+            if role == "radiant healer":
+                heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp']]
                 if heridos:
-                    a=random.choice(heridos)
-                    amt=int(a['max_hp']*0.4 + carta['int']*0.2)
-                    a['hp']=min(a['hp']+amt,a['max_hp'])
-                    log.append(f"💫 {carta['name']} radiante cura {a['name']} +{amt}HP")
+                    a = random.choice(heridos)
+                    amt = int(a['max_hp'] * 0.4 + carta['int'] * 0.2)
+                    a['hp'] = min(a['hp'] + amt, a['max_hp'])
+                    frases = [
+                        "{carta} invocó una energía radiante sobre {a}, sanándolo +{amt}HP.",
+                        "{carta} desbordó a {a} con una ola de luz curativa (+{amt}HP).",
+                        "{carta} iluminó las heridas de {a}, recuperándolo +{amt}HP."
+                    ]
+                    log.append(random.choice(frases).format(carta=carta["name"], a=a["name"], amt=amt))
                     continue
-            # Tank
-            if role=="tank":
-                # absorbe daño, ataca normal
-                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
-                objetivo['hp']-=dmg
-                log.append(f"🛡️ {carta['name']} defiende y ataca {objetivo['name']} -{dmg}HP")
+
+            if role == "tank":
+                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
+                objetivo['hp'] -= dmg
+                frases = [
+                    "{carta} resistió el impacto y contratacó a {objetivo} (-{dmg}HP).",
+                    "{carta} absorbió daño y devolvió el golpe a {objetivo} (-{dmg}HP).",
+                    "{carta} protegió al equipo mientras castigaba a {objetivo} (-{dmg}HP)."
+                ]
+                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
                 continue
-            # Deflector
-            if role=="deflector":
-                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
-                if random.random()<0.2:
-                    reflect=int(dmg*0.5)
-                    carta['hp']-=reflect
-                    log.append(f"🌀 {carta['name']} desvía y recibe {reflect}HP")
+
+            if role == "deflector":
+                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
+                if random.random() < 0.2:
+                    reflect = int(dmg * 0.5)
+                    carta['hp'] -= reflect
+                    frases = [
+                        "{carta} desvió parcialmente el ataque, recibiendo {reflect} de daño.",
+                        "{carta} canalizó el impacto de vuelta pero sufrió {reflect} de daño.",
+                        "{carta} reflejó parte del golpe, pero no salió ileso ({reflect}HP)."
+                    ]
+                    log.append(random.choice(frases).format(carta=carta["name"], reflect=reflect))
                 else:
-                    objetivo['hp']-=dmg
-                    log.append(f"🌀 {carta['name']} contragolpea {objetivo['name']} -{dmg}HP")
+                    objetivo['hp'] -= dmg
+                    frases = [
+                        "{carta} contraatacó con precisión a {objetivo} (-{dmg}HP).",
+                        "{carta} giró hábilmente y castigó a {objetivo} (-{dmg}HP).",
+                        "{carta} aprovechó un descuido de {objetivo} (-{dmg}HP)."
+                    ]
+                    log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
                 continue
-            # Slayer
-            if role=="slayer":
-                dmg=max(1,carta['atk']-int(objetivo['def']*0.3))
-                objetivo['hp']-=dmg
-                log.append(f"🔪 {carta['name']} slayer golpe a {objetivo['name']} -{dmg}HP")
+
+            if role == "slayer":
+                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.3))
+                objetivo['hp'] -= dmg
+                frases = [
+                    "{carta} ejecutó un golpe implacable sobre {objetivo} (-{dmg}HP).",
+                    "{carta} se lanzó sin piedad contra {objetivo} (-{dmg}HP).",
+                    "{carta} asestó un ataque decisivo a {objetivo} (-{dmg}HP)."
+                ]
+                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
                 continue
-            # Berserker
-            if role=="berserker":
-                dmg=int(max(1,carta['atk']-int(objetivo['def']*0.5))*1.2)
-                objetivo['hp']-=dmg
-                log.append(f"🔥 {carta['name']} furia a {objetivo['name']} -{dmg}HP")
+
+            if role == "berserker":
+                dmg = int(max(1, carta['atk'] - int(objetivo['def'] * 0.5)) * 1.2)
+                objetivo['hp'] -= dmg
+                frases = [
+                    "{carta} entró en frenesí y destrozó a {objetivo} (-{dmg}HP).",
+                    "{carta} rugió y lanzó un ataque devastador contra {objetivo} (-{dmg}HP).",
+                    "{carta} desató su furia total sobre {objetivo} (-{dmg}HP)."
+                ]
+                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
                 continue
-            # Duelist
-            if role=="duelist":
-                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
-                if random.random()<0.3:
-                    dmg*=2
-                    log.append(f"🎯 {carta['name']} crítico a {objetivo['name']} -{dmg}HP")
+
+            if role == "duelist":
+                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
+                if random.random() < 0.3:
+                    dmg *= 2
+                    frases = [
+                        "{carta} encontró el punto débil de {objetivo} y ejecutó un golpe crítico (-{dmg}HP)!",
+                        "{carta} aprovechó una abertura para un impacto letal contra {objetivo} (-{dmg}HP)!",
+                        "{carta} sorprendió a {objetivo} con un ataque maestro (-{dmg}HP)!"
+                    ]
                 else:
-                    objetivo['hp']-=dmg
-                    log.append(f"⚔️ {carta['name']} duelista a {objetivo['name']} -{dmg}HP")
+                    frases = [
+                        "{carta} se midió con {objetivo} y lanzó un ataque preciso (-{dmg}HP).",
+                        "{carta} se lanzó a un duelo rápido contra {objetivo} (-{dmg}HP).",
+                        "{carta} atacó a {objetivo} con estilo y técnica (-{dmg}HP)."
+                    ]
+                objetivo['hp'] -= dmg
+                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
                 continue
-            # Avenger
-            if role=="avenger":
-                muertos=sum(1 for a in aliados if a['hp']<=0)
-                dmg=max(1,carta['atk']+muertos*2-int(objetivo['def']*0.4))
-                objetivo['hp']-=dmg
-                log.append(f"😈 {carta['name']} venganza a {objetivo['name']} -{dmg}HP")
+
+            if role == "avenger":
+                muertos = sum(1 for a in aliados if a['hp'] <= 0)
+                dmg = max(1, carta['atk'] + muertos * 2 - int(objetivo['def'] * 0.4))
+                objetivo['hp'] -= dmg
+                frases = [
+                    "{carta} desató su ira acumulada sobre {objetivo} (-{dmg}HP).",
+                    "{carta} vengó a sus aliados golpeando a {objetivo} (-{dmg}HP).",
+                    "{carta} atacó en nombre de los caídos contra {objetivo} (-{dmg}HP)."
+                ]
+                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
                 continue
-            # Foresser
-            if role=="foresser":
-                if random.random()<0.3+carta['int']*0.02:
-                    log.append(f"🔮 {carta['name']} evadió ataque")
+
+            if role == "foresser":
+                if random.random() < 0.3 + carta['int'] * 0.02:
+                    frases = [
+                        "{carta} predijo el ataque y lo esquivó elegantemente.",
+                        "{carta} vio el futuro y evitó el peligro a tiempo.",
+                        "{carta} anticipó el movimiento de {objetivo} y salió ileso."
+                    ]
+                    log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"]))
                     continue
-                dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
-                objetivo['hp']-=dmg
-                log.append(f"👁️ {carta['name']} foresser ataca {objetivo['name']} -{dmg}HP")
+                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
+                objetivo['hp'] -= dmg
+                frases = [
+                    "{carta} atacó con sabiduría a {objetivo} (-{dmg}HP).",
+                    "{carta} aprovechó una visión para golpear a {objetivo} (-{dmg}HP).",
+                    "{carta} golpeó tras prever el punto débil de {objetivo} (-{dmg}HP)."
+                ]
+                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
                 continue
-            # Aura
-            if role=="aura":
+
+            if role in ["aura", "aura sparkling", "noble aura"]:
                 for a in aliados:
-                    a['atk']+=1
-                log.append(f"✨ {carta['name']} aura +1ATK equipo")
+                    if role == "aura":
+                        a['atk'] += 1
+                    elif role == "aura sparkling":
+                        a['atk'] += 2
+                    elif role == "noble aura":
+                        a['atk'] += 2
+                        a['def'] += 2
+                frases = [
+                    "{carta} inspiró a su equipo aumentando su fuerza.",
+                    "{carta} fortaleció a sus aliados con su energía.",
+                    "{carta} irradiaba poder y motivó a todo su equipo."
+                ]
+                log.append(random.choice(frases).format(carta=carta["name"]))
                 continue
-            # Aura Sparkling
-            if role=="aura sparkling":
-                for a in aliados:
-                    a['atk']+=2
-                log.append(f"🌟 {carta['name']} aura sparkling +2ATK equipo")
-                continue
-            # Noble Aura
-            if role=="noble aura":
-                for a in aliados:
-                    a['atk']+=2; a['def']+=2
-                log.append(f"👑 {carta['name']} noble aura +2ATK/DEF equipo")
-                continue
-            # Default
-            dmg=max(1,carta['atk']-int(objetivo['def']*0.5))
-            objetivo['hp']-=dmg
-            log.append(f"🔪 {carta['name']} ataca {objetivo['name']} -{dmg}HP")
-        ronda+=1
+
+        ronda += 1
+
+async def narrar_combate(interaction, log, ganador):
+    # Empezamos el combate
+    await interaction.followup.send("⚔️ ¡El combate ha comenzado!", ephemeral=True)
+
+    for evento in log:
+        await asyncio.sleep(1.5)  # espera entre líneas
+        await interaction.followup.send(evento, ephemeral=True)
+
+    # Al final anunciar el resultado
+    await asyncio.sleep(2)  # espera final para dramatismo
+
+    if ganador == "empate":
+        mensaje_final = "🤝 ¡El combate terminó en empate!"
+    elif ganador == "Equipo 1":
+        mensaje_final = "🏆 ¡El Equipo 1 ha vencido en la batalla!"
+    else:
+        mensaje_final = "🏆 ¡El Equipo 2 se alza con la victoria!"
+
+    await interaction.followup.send(mensaje_final, ephemeral=True)
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
@@ -1337,10 +1425,9 @@ async def duelopvp(interaction: discord.Interaction):
 
     pvp_queue.append(uid)
 
-    # 🔥 Nuevo: defer la respuesta inmediatamente
+    # 🔥 Reservar la interacción
     await interaction.response.defer(ephemeral=True)
 
-    # Ahora tenemos tiempo para buscar rival
     max_wait_time = 15
     waited = 0
     interval = 3
@@ -1365,19 +1452,15 @@ async def duelopvp(interaction: discord.Interaction):
         if error2:
             return await interaction.followup.send(error2, ephemeral=True)
 
+        # ✅ CORREGIDO: desempaquetar ganador y log
         try:
-            resultado = simular_combate(team1, team2)
+            ganador, log = simular_combate(team1, team2)
         except Exception as e:
             return await interaction.followup.send(f"❗ Error interno: `{str(e)}`", ephemeral=True)
 
-        if resultado == "empate":
-            mensaje = "🤝 ¡La batalla terminó en empate!"
-        elif resultado == "jugador1":
-            mensaje = f"🏆 ¡{interaction.user.mention} ganó el duelo!"
-        else:
-            mensaje = f"🏆 ¡El rival ganó el duelo!"
+        # 🎯 Llamar a narrar_combate para mostrar el combate
+        await narrar_combate(interaction, log, ganador)
 
-        await interaction.followup.send(mensaje)
     else:
         pvp_queue.remove(uid)
         await interaction.followup.send("❗ No se encontró rival en la cola PvP. Intenta más tarde.", ephemeral=True)
