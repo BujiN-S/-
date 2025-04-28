@@ -1529,7 +1529,7 @@ async def pvp(interaction: discord.Interaction):
 
 @bot.tree.command(name="duel", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
 @app_commands.describe(jugador="Usuario al que quieres retar")
-async def pvp(interaction: discord.Interaction, jugador: discord.User):
+async def duel(interaction: discord.Interaction, jugador: discord.User):
     uid1 = str(interaction.user.id)
     uid2 = str(jugador.id)
 
