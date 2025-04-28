@@ -1346,10 +1346,12 @@ def simular_combate(e1, e2):
 
         ronda += 1
 
-async def narrar_combate(interaction, log, ganador, jugador1, jugador2):
-    titulo = f"⚔️ {jugador1} vs {jugador2}\n"
+async def narrar_combate(interaction, log, ganador, jugador1, jugador2, mención1, mención2):
+    # ⚔️ Mención inicial a ambos jugadores
+    titulo = f"⚔️ {mención1} vs {mención2}\n\n"
     contenido = titulo + "🏁 ¡El combate ha comenzado!"
-    msg = await interaction.followup.send(content=contenido, ephemeral=True)
+    
+    msg = await interaction.followup.send(content=contenido)
 
     for evento in log:
         await asyncio.sleep(1.5)
@@ -1416,7 +1418,7 @@ def get_user_team(uid: str):
     return team, None
 
 @bot.tree.command(name="pvp", description="Entra en la cola PvP para luchar contra otro jugador.")
-async def duelopvp(interaction: discord.Interaction):
+async def duelopvp(interaction: discord.Interaction, jugador: discord.User):
     uid = str(interaction.user.id)
 
     # Verificar si ya tenés equipo
@@ -1473,7 +1475,15 @@ async def duelopvp(interaction: discord.Interaction):
             return await interaction.followup.send(f"❗ Error interno durante el combate: `{str(e)}`", ephemeral=True)
 
         # Mostrar narración de combate
-        await narrar_combate(interaction, log, ganador)
+        await narrar_combate(
+            interaction,
+            log,
+            ganador,
+            jugador1=interaction.user.display_name,
+            jugador2=jugador.display_name,
+            mención1=interaction.user.mention,
+            mención2=jugador.mention
+        )
 
     else:
         # Si no hubo rival, eliminar al usuario
@@ -1499,6 +1509,15 @@ async def pvp(interaction: discord.Interaction, jugador: discord.User):
 
     # Simula el combate
     ganador, log = simular_combate(team1, team2)
+    await narrar_combate(
+        interaction,
+        log,
+        ganador,
+        jugador1=interaction.user.display_name,
+        jugador2=jugador.display_name,
+        mención1=interaction.user.mention,
+        mención2=jugador.mention
+    )
 
     # Construye el embed de resultado
     embed = discord.Embed(
@@ -1508,7 +1527,7 @@ async def pvp(interaction: discord.Interaction, jugador: discord.User):
     embed.add_field(name="Ganador", value=ganador, inline=False)
     embed.add_field(name="Resumen", value="\n".join(log), inline=False)
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.followup.send(embed=embed)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
