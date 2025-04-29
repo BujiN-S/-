@@ -1439,7 +1439,7 @@ def get_user_team(uid: str):
 
         print(f"[DEBUG] CID: {cid_val}")
 
-        inst = user_cards.find_one({"cards.card_id": cid_val}, {"cards.$": 1})
+        inst = user_cards.find_one({"discordID": uid, "cards.card_id": cid_val}, {"cards.$": 1})
         print(f"[DEBUG] INSTANCIA EN user_cards: {inst}")
 
         if not inst or not inst.get("cards"):
