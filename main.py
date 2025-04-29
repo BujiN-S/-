@@ -1130,35 +1130,6 @@ async def remover(interaction: discord.Interaction, slot: int):
         ephemeral=True
     )
 
-# ---------- Funciones auxiliares ----------
-def get_user_team(discord_id):
-    # Carga formación y team IDs
-    form_doc = user_formations.find_one({"discordID": discord_id})
-    team_doc = user_teams.find_one({"discordID": discord_id})
-    if not form_doc or not team_doc:
-        return []
-    card_ids = team_doc.get("team", [])
-    # Cargamos datos
-    team = []
-    for cid in card_ids:
-        u = user_cards.find_one({"cards.card_id": cid}, {"cards.$":1})
-        if not u: continue
-        inst = u["cards"][0]
-        core = core_cards.find_one({"core_id": inst["core_id"]})
-        if not core: continue
-        c = {
-            "name": core["name"],
-            "role": core["role"].lower(),
-            "atk": core["stats"]["atk"],
-            "def": core["stats"]["def"],
-            "vel": core["stats"]["vel"],
-            "int": core["stats"]["int"],
-            "hp": core["stats"]["hp"],
-            "max_hp": core["stats"]["hp"],
-        }
-        team.append(c)
-    return team
-
 # ---------- Simulación de Combate ----------
 
 def simular_combate(e1, e2):
