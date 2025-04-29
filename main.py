@@ -11,6 +11,7 @@ import random
 from discord import ui, ButtonStyle
 from discord import Interaction, Embed, Color
 from discord.ui import View, Button
+import copy
 
 # Conexión a MongoDB y colecciones
 db_collections = db_connect()
@@ -180,6 +181,8 @@ async def on_ready():
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
+
+pvp_queue = []
 
 @bot.tree.command(name="start", description="Start your adventure!")
 async def start(interaction: discord.Interaction):
@@ -1135,8 +1138,9 @@ async def remover(interaction: discord.Interaction, slot: int):
 def simular_combate(e1, e2):
     log = []
     ronda = 1
-    cartas1 = [c.copy() for c in e1]
-    cartas2 = [c.copy() for c in e2]
+    cartas1 = [copy.deepcopy(c) for c in e1]
+    cartas2 = [copy.deepcopy(c) for c in e2]
+
 
     frases_ronda = [
         "Comienza una nueva ronda de enfrentamientos.",
