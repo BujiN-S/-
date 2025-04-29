@@ -1387,8 +1387,13 @@ async def narrar_combate_dual(interaction1, interaction2, log, ganador, jugador1
     await msg1.edit(content=titulo + resultado)
     await msg2.edit(content=titulo + resultado)
 
+    log_completo = "\n".join(log)
+    for chunk in [log_completo[i:i+1900] for i in range(0, len(log_completo), 1900)]:
+        await interaction1.followup.send(f"📜 {chunk.strip()}")
+        await interaction2.followup.send(f"📜 {chunk.strip()}")
+
 async def narrar_combate_simple(interaction, log, ganador, jugador1, jugador2):
-    titulo = f"⚔️ {jugador1} vs {jugador2}\n\n"
+    titulo = f"⚔️ {jugador1.display_name} vs {jugador2.display_name}\n\n"
     contenido = titulo + "🏁 ¡El combate ha comenzado!"
     
     msg = await interaction.followup.send(content=contenido)
@@ -1403,11 +1408,15 @@ async def narrar_combate_simple(interaction, log, ganador, jugador1, jugador2):
     if ganador == "empate":
         resultado = "🤝 ¡El combate terminó en empate!"
     elif ganador == "Equipo 1":
-        resultado = f"🏆 ¡{jugador1} ha ganado el duelo!"
+        resultado = f"🏆 ¡{jugador1.display_name} ha ganado el duelo!"
     else:
-        resultado = f"🏆 ¡{jugador2} ha ganado el duelo!"
+        resultado = f"🏆 ¡{jugador2.display_name} ha ganado el duelo!"
 
     await msg.edit(content=titulo + resultado)
+
+    log_completo = "\n".join(log)
+    for chunk in [log_completo[i:i+1900] for i in range(0, len(log_completo), 1900)]:
+        await interaction.followup.send(f"📜 {chunk.strip()}")
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
