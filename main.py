@@ -1350,26 +1350,35 @@ async def buscar_combate():
         interaction1 = jugador1["interaction"]
         interaction2 = jugador2["interaction"]
 
-        rival1 = await bot.fetch_user(int(uid1))
-        rival2 = await bot.fetch_user(int(uid2))
+        print(f"[DEBUG] Combate entre {uid1} vs {uid2}")
 
-        # Verificar equipos
+        # ⚠️ Verificar que son jugadores distintos
+        if uid1 == uid2:
+            print("⚠️ Mismo jugador en ambos lados. Cancelando combate.")
+            continue
+
+        # ✅ Cargar equipo de cada jugador justo antes del combate
         team1, error1 = get_user_team(uid1)
         team2, error2 = get_user_team(uid2)
 
         if error1 or error2:
             if error1:
-                await interaction1.followup.send(error1)
+                await interaction1.followup.send(error1, ephemeral=True)
             if error2:
-                await interaction2.followup.send(error2)
-            return
+                await interaction2.followup.send(error2, ephemeral=True)
+            continue
 
-        # Avisar a ambos que tienen rival
-        await interaction1.followup.send(f"⚔️ ¡Te enfrentas a {rival2.display_name}!", ephemeral=False)
-        await interaction2.followup.send(f"⚔️ ¡Te enfrentas a {rival1.display_name}!", ephemeral=False)
+        print(f"👥 Equipo de {uid1}: {[c['name'] for c in team1]}")
+        print(f"👥 Equipo de {uid2}: {[c['name'] for c in team2]}")
 
-        # Iniciar combate paralelo
-        asyncio.create_task(combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2))
+        rival1 = await bot.fetch_user(int(uid2))
+        rival2 = await bot.fetch_user(int(uid1))
+
+        await interaction1.followup.send(f"⚔️ ¡Te enfrentas a {rival1.display_name}!", ephemeral=False)
+        await interaction2.followup.send(f"⚔️ ¡Te enfrentas a {rival2.display_name}!", ephemeral=False)
+
+        # ✅ Llamar combate con equipos correctos
+        asyncio.create_task(combate_pvp(interaction1, interaction2, team1, team2, rival2, rival1))
 
 async def combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2):
     try:
@@ -1433,8 +1442,13 @@ pvp_queue = []
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
+    print(f"[DEBUG] Obteniendo equipo de {uid}")
+
     frm = user_formations.find_one({"discordID": uid})
     tdoc = user_teams.find_one({"discordID": uid})
+
+    print(f"[DEBUG] FORMATION: {frm}")
+    print(f"[DEBUG] TEAM DOC: {tdoc}")
 
     if not frm or not tdoc:
         return None, "❌ No tienes un equipo formado aún."
@@ -1443,24 +1457,35 @@ def get_user_team(uid: str):
     if not raw:
         return None, "❌ No tienes cartas en tu equipo."
 
-    # 🚫 Si hay algún slot vacío explícito
     if any(cid is None or cid == "" for cid in raw):
         return None, "❗ No puedes jugar: tienes un slot vacío en tu equipo."
 
     team = []
+
     for cid in raw:
         try:
             cid_val = int(cid)
         except (ValueError, TypeError):
-            cid_val = cid  # por si acaso ya es str
+            cid_val = cid
+
+        print(f"[DEBUG] CID: {cid_val}")
 
         inst = user_cards.find_one({"cards.card_id": cid_val}, {"cards.$": 1})
-        if not inst or not inst.get("cards"):
-            continue  # si no se encuentra la instancia, saltarlo
+        print(f"[DEBUG] INSTANCIA EN user_cards: {inst}")
 
-        core = core_cards.find_one({"id": inst["cards"][0]["core_id"]})
+        if not inst or not inst.get("cards"):
+            print(f"[DEBUG] ❌ No se encontró la carta con ID {cid_val}")
+            continue
+
+        core_id = inst["cards"][0].get("core_id")
+        print(f"[DEBUG] core_id encontrado: {core_id}")
+
+        core = core_cards.find_one({"id": core_id})
+        print(f"[DEBUG] Carta base encontrada: {core}")
+
         if not core:
-            continue  # si no se encuentra el core, también saltarlo
+            print(f"[DEBUG] ❌ No se encontró carta base con ID {core_id}")
+            continue
 
         team.append({
             "name":   core["name"],
@@ -1472,6 +1497,8 @@ def get_user_team(uid: str):
             "hp":     core["stats"]["hp"],
             "max_hp": core["stats"]["hp"],
         })
+
+    print(f"[DEBUG] EQUIPO FINAL CONSTRUIDO: {team}")
 
     if not team:
         return None, "⚠️ No pude construir tu equipo."
