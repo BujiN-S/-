@@ -1317,29 +1317,6 @@ def simular_combate(e1, e2):
 
         ronda += 1
 
-async def narrar_combate(interaction, log, ganador, jugador1, jugador2, mención1, mención2):
-    # ⚔️ Mención inicial a ambos jugadores
-    titulo = f"⚔️ {mención1} vs {mención2}\n\n"
-    contenido = titulo + "🏁 ¡El combate ha comenzado!"
-    
-    msg = await interaction.followup.send(content=contenido)
-
-    for evento in log:
-        await asyncio.sleep(1.5)
-        nuevo_contenido = titulo + evento
-        await msg.edit(content=nuevo_contenido)
-
-    await asyncio.sleep(2)
-
-    if ganador == "empate":
-        mensaje_final = "🤝 ¡El combate terminó en empate!"
-    elif ganador == "Equipo 1":
-        mensaje_final = f"🏆 ¡{jugador1} ha ganado el duelo!"
-    else:
-        mensaje_final = f"🏆 ¡{jugador2} ha ganado el duelo!"
-
-    await msg.edit(content=titulo + mensaje_final)
-
 async def buscar_combate():
     while len(pvp_queue) >= 2:
         jugador1 = pvp_queue.pop(0)
@@ -1350,35 +1327,26 @@ async def buscar_combate():
         interaction1 = jugador1["interaction"]
         interaction2 = jugador2["interaction"]
 
-        print(f"[DEBUG] Combate entre {uid1} vs {uid2}")
+        rival1 = await bot.fetch_user(int(uid1))
+        rival2 = await bot.fetch_user(int(uid2))
 
-        # ⚠️ Verificar que son jugadores distintos
-        if uid1 == uid2:
-            print("⚠️ Mismo jugador en ambos lados. Cancelando combate.")
-            continue
-
-        # ✅ Cargar equipo de cada jugador justo antes del combate
+        # Verificar equipos
         team1, error1 = get_user_team(uid1)
         team2, error2 = get_user_team(uid2)
 
         if error1 or error2:
             if error1:
-                await interaction1.followup.send(error1, ephemeral=True)
+                await interaction1.followup.send(error1)
             if error2:
-                await interaction2.followup.send(error2, ephemeral=True)
-            continue
+                await interaction2.followup.send(error2)
+            return
 
-        print(f"👥 Equipo de {uid1}: {[c['name'] for c in team1]}")
-        print(f"👥 Equipo de {uid2}: {[c['name'] for c in team2]}")
+        # Avisar a ambos que tienen rival
+        await interaction1.followup.send(f"⚔️ ¡Te enfrentas a {rival2.display_name}!", ephemeral=False)
+        await interaction2.followup.send(f"⚔️ ¡Te enfrentas a {rival1.display_name}!", ephemeral=False)
 
-        rival1 = await bot.fetch_user(int(uid2))
-        rival2 = await bot.fetch_user(int(uid1))
-
-        await interaction1.followup.send(f"⚔️ ¡Te enfrentas a {rival1.display_name}!", ephemeral=False)
-        await interaction2.followup.send(f"⚔️ ¡Te enfrentas a {rival2.display_name}!", ephemeral=False)
-
-        # ✅ Llamar combate con equipos correctos
-        asyncio.create_task(combate_pvp(interaction1, interaction2, team1, team2, rival2, rival1))
+        # Iniciar combate paralelo
+        asyncio.create_task(combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2))
 
 async def combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2):
     try:
@@ -1436,9 +1404,6 @@ async def narrar_combate_simple(interaction, log, ganador, jugador1, jugador2):
         resultado = f"🏆 ¡{jugador2} ha ganado el duelo!"
 
     await msg.edit(content=titulo + resultado)
-
-
-pvp_queue = []
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
