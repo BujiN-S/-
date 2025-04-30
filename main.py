@@ -1390,7 +1390,7 @@ async def narrar_combate_dual(interaction1, interaction2, log, ganador, jugador1
     msg2 = await interaction2.followup.send(content=contenido)
 
     for evento in log:
-        await asyncio.sleep(5)  # Aquí puedes ajustar el tiempo de narración
+        await asyncio.sleep(3)  # Aquí puedes ajustar el tiempo de narración
         nuevo_contenido = titulo + evento
         await msg1.edit(content=nuevo_contenido)
         await msg2.edit(content=nuevo_contenido)
@@ -1414,7 +1414,7 @@ async def narrar_combate_simple(interaction, log, ganador, jugador1, jugador2):
     msg = await interaction.followup.send(content=contenido)
 
     for evento in log:
-        await asyncio.sleep(5)
+        await asyncio.sleep(3)
         nuevo_contenido = titulo + evento
         await msg.edit(content=nuevo_contenido)
 
