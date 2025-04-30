@@ -1526,36 +1526,30 @@ async def pvp(interaction: discord.Interaction):
 @bot.tree.command(name="duel", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
 @app_commands.describe(jugador="Usuario al que quieres retar")
 async def duel(interaction: discord.Interaction, jugador: discord.User):
-    await interaction.response.defer()  # 🔥 Muy importante defer apenas empieza
+    await interaction.response.defer()
 
     uid1 = str(interaction.user.id)
     uid2 = str(jugador.id)
 
-    team1, error1 = get_user_team(uid1)
-    team2, error2 = get_user_team(uid2)
+    try:
+        team1, error1 = get_user_team(uid1)
+        team2, error2 = get_user_team(uid2)
 
-    if error1 or error2:
-        return await interaction.followup.send(  # 🔥 Ahora usamos followup, no response
-            error1 or error2
+        if error1 or error2:
+            return await interaction.followup.send(error1 or error2)
+
+        ganador, log = simular_combate(team1, team2)
+
+        await narrar_combate_simple(
+            interaction,
+            log,
+            ganador,
+            jugador1=interaction.user.display_name,
+            jugador2=jugador.display_name
         )
 
-    ganador, log = simular_combate(team1, team2)
-    await narrar_combate_simple(
-        interaction,
-        log,
-        ganador,
-        jugador1=interaction.user.display_name,
-        jugador2=jugador.display_name
-    )
-
-    embed = discord.Embed(
-        title="🏆 Resultado del Combate PvP",
-        color=discord.Color.purple()
-    )
-    embed.add_field(name="Ganador", value=ganador, inline=False)
-    embed.add_field(name="Resumen", value="\n".join(log), inline=False)
-
-    await interaction.followup.send(embed=embed)
+    except Exception as e:
+        return await interaction.followup.send(f"❗ Error interno durante el duelo: {str(e)}")
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
