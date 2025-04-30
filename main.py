@@ -1171,7 +1171,7 @@ def simular_combate(e1, e2):
 
             # Frases por tipo de acción
             if role == "healer":
-                heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp']]
+                heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp'] and a != carta]
                 if heridos:
                     a = random.choice(heridos)
                     amt = int(a['max_hp'] * 0.2 + carta['int'] * 0.1)
@@ -1185,18 +1185,18 @@ def simular_combate(e1, e2):
                     continue
 
             if role == "radiant healer":
-                heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp']]
-                if heridos:
-                    a = random.choice(heridos)
-                    amt = int(a['max_hp'] * 0.4 + carta['int'] * 0.2)
-                    a['hp'] = min(a['hp'] + amt, a['max_hp'])
-                    frases = [
-                        "{carta} invocó una energía radiante sobre {a}, sanándolo +{amt}HP.",
-                        "{carta} desbordó a {a} con una ola de luz curativa (+{amt}HP).",
-                        "{carta} iluminó las heridas de {a}, recuperándolo +{amt}HP."
-                    ]
-                    log.append(random.choice(frases).format(carta=carta["name"], a=a["name"], amt=amt))
-                    continue
+               heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp'] and a != carta]
+               if heridos:
+                   a = random.choice(heridos)
+                   amt = int(a['max_hp'] * 0.4 + carta['int'] * 0.2)
+                   a['hp'] = min(a['hp'] + amt, a['max_hp'])
+                   frases = [
+                       "{carta} invocó una energía radiante sobre {a}, sanándolo +{amt}HP.",
+                       "{carta} desbordó a {a} con una ola de luz curativa (+{amt}HP).",
+                       "{carta} iluminó las heridas de {a}, recuperándolo +{amt}HP."
+                   ]
+                   log.append(random.choice(frases).format(carta=carta["name"], a=a["name"], amt=amt))
+                   continue
 
             if role == "tank":
                 dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
@@ -1210,7 +1210,11 @@ def simular_combate(e1, e2):
                 continue
 
             if role == "deflector":
-                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
+                base = carta["atk"]
+                resist = objetivo["def"]
+                dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
+                dmg = max(1, dmg)
+
                 if random.random() < 0.2:
                     reflect = int(dmg * 0.5)
                     carta['hp'] -= reflect
@@ -1228,10 +1232,14 @@ def simular_combate(e1, e2):
                         "{carta} aprovechó un descuido de {objetivo} (-{dmg}HP)."
                     ]
                     log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
-                continue
+                    continue
 
             if role == "slayer":
-                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.3))
+                base = carta["atk"]
+                resist = objetivo["def"]
+                dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
+                dmg = max(1, dmg)
+
                 objetivo['hp'] -= dmg
                 frases = [
                     "{carta} ejecutó un golpe implacable sobre {objetivo} (-{dmg}HP).",
@@ -1242,7 +1250,11 @@ def simular_combate(e1, e2):
                 continue
 
             if role == "berserker":
-                dmg = int(max(1, carta['atk'] - int(objetivo['def'] * 0.5)) * 1.2)
+                base = carta["atk"]
+                resist = objetivo["def"]
+                dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
+                dmg = max(1, int(dmg * 1.2))
+
                 objetivo['hp'] -= dmg
                 frases = [
                     "{carta} entró en frenesí y destrozó a {objetivo} (-{dmg}HP).",
@@ -1253,7 +1265,11 @@ def simular_combate(e1, e2):
                 continue
 
             if role == "duelist":
-                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
+                base = carta["atk"]
+                resist = objetivo["def"]
+                dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
+                dmg = max(1, dmg)
+
                 if random.random() < 0.3:
                     dmg *= 2
                     frases = [
@@ -1261,19 +1277,24 @@ def simular_combate(e1, e2):
                         "{carta} aprovechó una abertura para un impacto letal contra {objetivo} (-{dmg}HP)!",
                         "{carta} sorprendió a {objetivo} con un ataque maestro (-{dmg}HP)!"
                     ]
-                else:
-                    frases = [
-                        "{carta} se midió con {objetivo} y lanzó un ataque preciso (-{dmg}HP).",
-                        "{carta} se lanzó a un duelo rápido contra {objetivo} (-{dmg}HP).",
-                        "{carta} atacó a {objetivo} con estilo y técnica (-{dmg}HP)."
-                    ]
-                objetivo['hp'] -= dmg
-                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
-                continue
+            else:
+                frases = [
+                    "{carta} se midió con {objetivo} y lanzó un ataque preciso (-{dmg}HP).",
+                    "{carta} se lanzó a un duelo rápido contra {objetivo} (-{dmg}HP).",
+                    "{carta} atacó a {objetivo} con estilo y técnica (-{dmg}HP)."
+                ]
+
+            objetivo['hp'] -= dmg
+            log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+            continue
 
             if role == "avenger":
                 muertos = sum(1 for a in aliados if a['hp'] <= 0)
-                dmg = max(1, carta['atk'] + muertos * 2 - int(objetivo['def'] * 0.4))
+                base = carta["atk"] + muertos * 2
+                resist = objetivo["def"]
+                dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
+                dmg = max(1, dmg)
+
                 objetivo['hp'] -= dmg
                 frases = [
                     "{carta} desató su ira acumulada sobre {objetivo} (-{dmg}HP).",
@@ -1292,7 +1313,12 @@ def simular_combate(e1, e2):
                     ]
                     log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"]))
                     continue
-                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
+
+                base = carta["atk"]
+                resist = objetivo["def"]
+                dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
+                dmg = max(1, dmg)
+
                 objetivo['hp'] -= dmg
                 frases = [
                     "{carta} atacó con sabiduría a {objetivo} (-{dmg}HP).",
@@ -1304,6 +1330,8 @@ def simular_combate(e1, e2):
 
             if role in ["aura", "aura sparkling", "noble aura"]:
                 for a in aliados:
+                    if a == carta:
+                        continue  # excluye al caster
                     if role == "aura":
                         a['atk'] += 1
                     elif role == "aura sparkling":
