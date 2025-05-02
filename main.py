@@ -363,7 +363,7 @@ async def balance(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name="bet", description="Bet some coins and see if luck's on your side!")
-@app_commands.describe(cantidad="Bet amount")
+@app_commands.describe(amount="Bet amount")
 async def bet(interaction: discord.Interaction, amount: int):
     user_id = str(interaction.user.id)
     user_name = interaction.user.name
@@ -417,7 +417,7 @@ async def bet(interaction: discord.Interaction, amount: int):
         color=discord.Color.orange()
     )
     embed.set_thumbnail(url=avatar_url)
-    embed.set_footer(text=f"New balance: {new_coins} coins")
+    embed.set_footer(text=f"{user_name}'s new balance: {new_coins} coins")
 
     await interaction.response.send_message(embed=embed)
 
