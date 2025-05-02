@@ -838,6 +838,7 @@ async def sell(interaction: Interaction, card_id: str):
     if team_doc and "team" in team_doc:
         used_ids = []
         for zone in ("frontline", "midline", "backline"):
+            # extraemos los IDs como strings
             used_ids += [str(cid) for cid in team_doc["team"].get(zone, [])]
         if card_id in used_ids:
             return await interaction.response.send_message(
@@ -876,8 +877,10 @@ async def sell(interaction: Interaction, card_id: str):
     # 6️⃣ Confirmación al usuario
     embed = Embed(
         title="💰 Card sold",
-        description=(f"You sold **{card['name']}** [{rank}]\n"
-                     f"You earned **{value} coins**."),
+        description=(
+            f"You sold **{card['name']}** [{rank}]\n"
+            f"You earned **{value} coins**."
+        ),
         color=Color.gold()
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
