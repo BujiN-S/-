@@ -218,7 +218,7 @@ async def profile(interaction: discord.Interaction):
     )
     embed.set_thumbnail(url=avatar_url)
     embed.add_field(name="🆔 User's ID", value=user_data.get("discordID", "Stranger"), inline=False)
-    embed.add_field(name="💰 Coins", value=user_data.get("Coins", 0), inline=True)
+    embed.add_field(name="💰 Coins", value=user_data.get("coins", 0), inline=True)
     embed.add_field(name="🏠 Clan", value=user_data.get("clan", "None"), inline=True)
 
     await interaction.response.send_message(embed=embed)
