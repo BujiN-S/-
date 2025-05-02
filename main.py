@@ -534,7 +534,7 @@ class CatalogView(ui.View):
         page = self.cards[start:end]
 
         embed = discord.Embed(
-            title=f"📚 Catalog (Page {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
+            title=f"📚 Catalog (Page {self.current+1}/{(len(self.cards)-1)//self.per_page+1})",
             color=discord.Color.blurple()
         )
         for c in page:
@@ -601,7 +601,7 @@ async def collection(interaction: discord.Interaction):
             for c in chunk:
                 embed.add_field(
                     name=f"{c.get('name','?')} [{c.get('rank','?')}]",
-                    value=f"ID: {c.get('card_id','?')} | Rol: {c.get('role','?')} | Clase: {c.get('class','?')}",
+                    value=f"ID: {c.get('card_id','?')} | Role: {c.get('role','?')} | Class: {c.get('class','?')}",
                     inline=False
                 )
             return embed
