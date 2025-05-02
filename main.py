@@ -851,7 +851,7 @@ async def sell(interaction: Interaction, card_id: str):
     if not doc or "cards" not in doc:
         return await interaction.response.send_message("❌ You don't have cards.", ephemeral=True)
 
-    card = next((c for c in doc["cards"] if str(c.get("card_id")) == card_id), None)
+    card = next((c for c in doc["cards"] if str(c.get("card_id")) == str(card_id)), None)
     if not card:
         return await interaction.response.send_message(
             "❌ No card matches that ID.", 
