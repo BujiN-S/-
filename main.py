@@ -831,20 +831,14 @@ async def open(interaction: Interaction):
 @bot.tree.command(name="sell", description="Sell a card from your collection for coins.")
 @app_commands.describe(card_id="Card ID")
 async def sell(interaction: Interaction, card_id: str):
+    await interaction.response.defer(ephemeral=True)
     try:
-        # ⚠️ Muy importante: defer para evitar 3s timeout
-        await interaction.response.defer(ephemeral=True)
-
         uid = str(interaction.user.id)
 
         doc = user_cards.find_one({"discordID": uid})
         if not doc or not doc.get("cards"):
             return await interaction.followup.send("❌ You have no cards to sell.", ephemeral=True)
 
-        print("[DEBUG] Received card_id:", card_id)
-        print("[DEBUG] User cards list:", doc["cards"])
-
-        # Asegurarse de comparar como string
         card = next((c for c in doc["cards"] if str(c.get("card_id")) == str(card_id)), None)
         if not card:
             return await interaction.followup.send("❌ You don't own a card with that ID.", ephemeral=True)
@@ -855,26 +849,23 @@ async def sell(interaction: Interaction, card_id: str):
 
         value = int(core.get("value", 100))
 
-        # Eliminar la carta del inventario
         user_cards.update_one(
             {"discordID": uid},
             {"$pull": {"cards": {"card_id": card["card_id"]}}}
         )
-
-        # Aumentar monedas del usuario
         users.update_one(
             {"discordID": uid},
             {"$inc": {"coins": value}}
         )
 
-        return await interaction.followup.send(
+        await interaction.followup.send(
             f"✅ You sold **{core['name']}** for 💰 `{value}` coins.",
             ephemeral=True
         )
 
     except Exception as e:
         print("[ERROR in /sell]:", str(e))
-        return await interaction.followup.send(f"❌ Internal error: `{str(e)}`", ephemeral=True)
+        await interaction.followup.send(f"❌ Internal error: `{str(e)}`", ephemeral=True)
 
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
