@@ -847,7 +847,8 @@ async def sell(interaction: Interaction, card_id: str):
         if not core:
             return await interaction.followup.send("❌ Could not find base data for that card.", ephemeral=True)
 
-        value = int(core.get("value", 100))
+        rank = core.get("rank", "E")  # Asegúrate de que 'rank' esté en core
+        value = RANK_VALUE.get(rank, 100)
 
         user_cards.update_one(
             {"discordID": uid},
