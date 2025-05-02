@@ -829,59 +829,56 @@ async def open(interaction: Interaction):
     await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name="sell", description="Sell a card from your collection.")
-@app_commands.describe(id="Card ID")
-async def sell(interaction: Interaction, id: str):
+@app_commands.describe(card_id="The ID of the card you want to sell")
+async def sell(interaction: discord.Interaction, card_id: str):
     uid = str(interaction.user.id)
 
-    # 1️⃣ Comprobar si la carta está en el equipo activo
+    # 1️⃣ Check if the card is in the active team
     team_doc = user_teams.find_one({"discordID": uid})
     if team_doc and "team" in team_doc:
         used_ids = []
         for zone in ("frontline", "midline", "backline"):
-            # extraemos los IDs como strings
             used_ids += [str(cid) for cid in team_doc["team"].get(zone, [])]
-        if id in used_ids:
+        if card_id in used_ids:
             return await interaction.response.send_message(
                 "❌ Cards in your team cannot be sold.", 
                 ephemeral=True
             )
 
-    # 2️⃣ Recuperar la carta por su card_id de tu colección
+    # 2️⃣ Find the card in user's collection
     doc = user_cards.find_one({"discordID": uid})
     if not doc or "cards" not in doc:
-        return await interaction.response.send_message("❌ You don't have cards.", ephemeral=True)
+        return await interaction.response.send_message("❌ You don't have any cards.", ephemeral=True)
 
-    card = next((c for c in doc["cards"] if str(c.get("card_id")) == id), None)
+    card = next((c for c in doc["cards"] if str(c.get("card_id")) == card_id), None)
     if not card:
-        return await interaction.response.send_message(
-            "❌ No card matches that ID.", 
-            ephemeral=True
-        )
+        return await interaction.response.send_message("❌ No card matches that ID.", ephemeral=True)
 
-    # 3️⃣ Determinar valor de venta según rango
+    # 3️⃣ Determine sell value
     rank = card.get("rank", "E")
     value = RANK_VALUE.get(rank, 0)
 
-    # 4️⃣ Eliminar la carta de tu colección
+    # 4️⃣ Remove the card
     user_cards.update_one(
         {"discordID": uid},
         {"$pull": {"cards": {"card_id": card["card_id"]}}}
     )
 
-    # 5️⃣ Otorgar las monedas
+    # 5️⃣ Give coins and get new balance
     users.update_one(
         {"discordID": uid},
         {"$inc": {"coins": value}}
     )
+    new_balance = users.find_one({"discordID": uid}).get("coins", 0)
 
-    # 6️⃣ Confirmación al usuario
-    embed = Embed(
-        title="💰 Card sold",
+    # 6️⃣ Confirmation
+    embed = discord.Embed(
+        title="💰 Card Sold!",
         description=(
-            f"You sold **{card['name']}** [{rank}]\n"
-            f"You earned **{value} coins**."
+            f"You sold **{card['name']}** [{rank}] for **{value} coins**.\n"
+            f"Your new balance is **{new_balance} coins**."
         ),
-        color=Color.gold()
+        color=discord.Color.gold()
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
