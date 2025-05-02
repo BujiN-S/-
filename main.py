@@ -861,7 +861,7 @@ async def sell(interaction: Interaction, card_id: str):
         )
 
         # Give coins
-        user_data.update_one(
+        users.update_one(
             {"discordID": uid},
             {"$inc": {"coins": value}}
         )
