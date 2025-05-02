@@ -456,7 +456,7 @@ async def give(interaction: discord.Interaction, user: discord.User, amount: int
 
     # Transferencia
     new_transmitter = transmitter_holdings - amount
-    new_receiver = receiver.get("money", 0) + amount
+    new_receiver = receiver.get("coins", 0) + amount
 
     users.update_one({"discordID": transmitter_id}, {"$set": {"coins": new_transmitter}})
     users.update_one({"discordID": receiver_id}, {"$set": {"coins": new_receiver}})
