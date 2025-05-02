@@ -828,62 +828,52 @@ async def open(interaction: Interaction):
     view = OpenPackView(uid, doc["packs"])
     await interaction.response.send_message(embed=embed, view=view)
 
-@bot.tree.command(name="sell", description="Sell a card from your collection.")
+@bot.tree.command(name="sell", description="Sell a card from your collection for coins.")
 @app_commands.describe(card_id="Card ID")
 async def sell(interaction: Interaction, card_id: str):
-    uid = str(interaction.user.id)
+    try:
+        await interaction.response.defer(ephemeral=True)
+        uid = str(interaction.user.id)
 
-    # 1️⃣ Comprobar si la carta está en el equipo activo
-    team_doc = user_teams.find_one({"discordID": uid})
-    if team_doc and "team" in team_doc:
-        used_ids = []
-        for zone in ("frontline", "midline", "backline"):
-            # extraemos los IDs como strings
-            used_ids += [str(cid) for cid in team_doc["team"].get(zone, [])]
-        if card_id in used_ids:
-            return await interaction.response.send_message(
-                "❌ Cards in your team cannot be sold.", 
-                ephemeral=True
-            )
+        doc = user_cards.find_one({"discordID": uid})
+        if not doc or not doc.get("cards"):
+            return await interaction.followup.send("❌ You have no cards to sell.", ephemeral=True)
 
-    # 2️⃣ Recuperar la carta por su card_id de tu colección
-    doc = user_cards.find_one({"discordID": uid})
-    if not doc or "cards" not in doc:
-        return await interaction.response.send_message("❌ You don't have cards.", ephemeral=True)
+        print("[DEBUG] Received card_id:", card_id)
+        print("[DEBUG] User cards list:", doc["cards"])
 
-    card = next((c for c in doc["cards"] if str(c.get("card_id")) == str(card_id)), None)
-    if not card:
-        return await interaction.response.send_message(
-            "❌ No card matches that ID.", 
+        # Always compare as strings
+        card = next((c for c in doc["cards"] if str(c.get("card_id")) == str(card_id)), None)
+        if not card:
+            return await interaction.followup.send("❌ You don't own a card with that ID.", ephemeral=True)
+
+        core = core_cards.find_one({"id": card["core_id"]})
+        if not core:
+            return await interaction.followup.send("❌ Could not find base data for that card.", ephemeral=True)
+
+        # Calculate value (adjust if needed)
+        value = int(core.get("value", 100))
+
+        # Remove the card
+        user_cards.update_one(
+            {"discordID": uid},
+            {"$pull": {"cards": {"card_id": card["card_id"]}}}
+        )
+
+        # Give coins
+        user_data.update_one(
+            {"discordID": uid},
+            {"$inc": {"coins": value}}
+        )
+
+        return await interaction.followup.send(
+            f"✅ You sold **{core['name']}** for 💰 `{value}` coins.",
             ephemeral=True
         )
 
-    # 3️⃣ Determinar valor de venta según rango
-    rank = card.get("rank", "E")
-    value = RANK_VALUE.get(rank, 0)
-
-    # 4️⃣ Eliminar la carta de tu colección
-    user_cards.update_one(
-        {"discordID": uid},
-        {"$pull": {"cards": {"card_id": card["card_id"]}}}
-    )
-
-    # 5️⃣ Otorgar las monedas
-    users.update_one(
-        {"discordID": uid},
-        {"$inc": {"coins": value}}
-    )
-
-    # 6️⃣ Confirmación al usuario
-    embed = Embed(
-        title="💰 Card sold",
-        description=(
-            f"You sold **{card['name']}** [{rank}]\n"
-            f"You earned **{value} coins**."
-        ),
-        color=Color.gold()
-    )
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+    except Exception as e:
+        print("[ERROR in /sell]", str(e))
+        return await interaction.followup.send(f"❌ Internal error: `{str(e)}`", ephemeral=True)
 
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
