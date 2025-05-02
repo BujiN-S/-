@@ -24,8 +24,8 @@ user_formations = db_collections["user_formations"]
 user_teams = db_collections["user_teams"]
 pvp_queue = db_collections["pvp_queue"]
 
-def color_por_rango(rango):
-    colores = {
+def color_by_rank(rank):
+    colors = {
         "Z": discord.Color.from_rgb(255, 0, 255),
         "S": discord.Color.red(),
         "A": discord.Color.orange(),
@@ -34,46 +34,46 @@ def color_por_rango(rango):
         "D": discord.Color.dark_gray(),
         "E": discord.Color.light_gray()
     }
-    return colores.get(rango.upper(), discord.Color.default())
+    return colors.get(rank.upper(), discord.Color.default())
 
-def generar_embed_carta(carta, mostrar_footer=True):
+def generate_card_embed(card, show_footer=True):
     embed = discord.Embed(
-        color=color_por_rango(carta["rank"]),
+        color=color_by_rank(card["rank"]),
         description=(
-            f"**📝 Name:** {carta['name']}\n"
-            f"**🎖️ Rank:** {carta['rank']}\n"
-            f"**🏷️ Class:** {carta['class']}\n"
-            f"**🎭 Role:** {carta['role']}\n\n"
-            f"**📊 Stats:** 🗡️ATK{carta['stats']['atk']} | 🛡️DEF{carta['stats']['def']} | ⚡VEL{carta['stats']['vel']} | ❤️HP{carta['stats']['hp']} | 🧠INT{carta['stats']['int']}\n"
-            f"**🔥 Overall:** {carta['overall']}"
+            f"**📝 Name:** {card['name']}\n"
+            f"**🎖️ Rank:** {card['rank']}\n"
+            f"**🏷️ Class:** {card['class']}\n"
+            f"**🎭 Role:** {card['role']}\n\n"
+            f"**📊 Stats:** 🗡️ATK{card['stats']['atk']} | 🛡️DEF{card['stats']['def']} | ⚡VEL{card['stats']['vel']} | ❤️HP{card['stats']['hp']} | 🧠INT{card['stats']['int']}\n"
+            f"**🔥 Overall:** {card['overall']}"
         )
     )
-    embed.set_image(url=carta["image"])
-    if mostrar_footer:
-        embed.set_footer(text="Una nueva presencia se une a tu colección...")
+    embed.set_image(url=card["image"])
+    if show_footer:
+        embed.set_footer(text="A new presence joins your collection...")
     return embed
 
-def agregar_carta_usuario(user_id, carta):
+def add_user_card(user_id, card):
     user_data = user_cards.find_one({"discordID": user_id})
     if not user_data:
         user_cards.insert_one({"discordID": user_id, "cards": []})
         user_data = user_cards.find_one({"discordID": user_id})
 
     card_id = len(user_data["cards"]) + 1
-    nueva = {
+    new = {
         "card_id": card_id,
-        "core_id": carta["id"],  # <- ¡clave!
-        "name": carta["name"],
-        "class": carta["class"],
-        "role": carta["role"],
-        "rank": carta["rank"],
-        "image": carta.get("image", ""),
+        "core_id": card["id"],  # <- ¡clave!
+        "name": card["name"],
+        "class": card["class"],
+        "role": card["role"],
+        "rank": card["rank"],
+        "image": card.get("image", ""),
         "obtained_at": datetime.utcnow().isoformat()
     }
 
     user_cards.update_one(
         {"discordID": user_id},
-        {"$push": {"cards": nueva}}
+        {"$push": {"cards": new}}
     )
 
     users.update_one(
@@ -82,25 +82,25 @@ def agregar_carta_usuario(user_id, carta):
         upsert=True
     )
 
-def elegir_rank(probabilidades):
+def choose_rank(probabilities):
     return random.choices(
-        list(probabilidades.keys()),
-        weights=list(probabilidades.values()),
+        list(probabilities.keys()),
+        weights=list(probabilities.values()),
         k=1
     )[0]
 
 PHRASES_DAILY = [
-    "🎁 Los vientos del destino te traen una nueva aliada.",
-    "✨ Una energía desconocida se manifiesta en forma de carta.",
-    "🔥 ¡Tu poder crece, una carta legendaria ha respondido a tu llamado!",
-    "🌙 Una figura misteriosa ha sido atraída por tu aura..."
+    "🎁 The winds of destiny bring you a new ally.",
+    "✨ An unknown energy manifests as a card.",
+    "🔥 Your power grows, a legendary card has answered your call!",
+    "🌙 A mysterious figure has been lured by your aura..."
 ]
 
 PHRASES_HOURLY = [
-    "✨ ¡Una carta ha respondido a tu llamado, viajero del destino!",
-    "🌟 Un susurro místico trae una nueva carta a tus manos.",
-    "🔮 El tapiz del destino te concede esta carta simbólica.",
-    "⚔️ Una guerrera de otro plano irrumpe en tu colección..."
+    "✨ A card has answered your call, traveler of destiny!",
+    "🌟 A mystical whisper brings a new card into your hands.",
+    "🔮 The tapestry of destiny grants you this symbolic card.",
+    "⚔️ A warrior from another realm bursts into your collection..."
 ]
 
 DAILY_CD = timedelta(hours=24)
@@ -145,16 +145,16 @@ FORMATION_TEMPLATES = {
            "frontline": 1, "midline": 1, "backline": 2},
 }
 
-def elegir_rank_threshold(probs: dict[str, float]) -> str:
+def choose_rank_threshold(probs: dict[str, float]) -> str:
     """
     Recibe un dict rank->prob (suman 1.0), 
     devuelve un rank usando random.random().
     """
     r = random.random()
-    acumulado = 0.0
+    Accumulated = 0.0
     for rank, p in probs.items():
-        acumulado += p
-        if r < acumulado:
+        Accumulated += p
+        if r < Accumulated:
             return rank
     # por si acaso, devolvemos el último
     return list(probs.keys())[-1]
@@ -190,47 +190,41 @@ async def start(interaction: discord.Interaction):
     user_name = interaction.user.name
 
     if users.find_one({"discordID": user_id}):
-        await interaction.response.send_message("✅ Ya estás registrado.", ephemeral=True)
+        await interaction.response.send_message("You're already registered, genius.", ephemeral=True)
     else:
         users.insert_one({
             "discordID": user_id,
             "userName": user_name,
-            "monedas": 0,
-            "clase": "Sin clase",
-            "nivel": 1,
-            "clan": "Sin clan",
-            "poder_total": 0,
+            "coins": 0,
+            "clan": "None",
             "card_count": 0
         })
-        await interaction.response.send_message("🎉 ¡Tu aventura ha comenzado!", ephemeral=True)
+        await interaction.response.send_message("🎉 Your adventure has begun!", ephemeral=True)
 
-@bot.tree.command(name="perfil", description="Muestra el perfil del jugador")
-async def perfil(interaction: discord.Interaction):
+@bot.tree.command(name="profile", description="Show your profile")
+async def profile(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     user_data = users.find_one({"discordID": user_id})
 
     if not user_data:
-        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        await interaction.response.send_message("❌ You are not registered. Use '/start' to begin.", ephemeral=True)
         return
 
     avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
     embed = discord.Embed(
-        title=f"👤 Perfil de {interaction.user.name}",
-        description="Aquí tienes tu información como jugador:",
+        title=f"{interaction.user.name}'s Profile",
+        description="Here is your information:",
         color=discord.Color.blurple()
     )
     embed.set_thumbnail(url=avatar_url)
-    embed.add_field(name="🆔 ID de Usuario", value=user_data.get("discordID", "Desconocido"), inline=False)
-    embed.add_field(name="💰 Monedas", value=user_data.get("monedas", 0), inline=True)
-    embed.add_field(name="⚔️ Clase", value=user_data.get("clase", "Sin clase"), inline=True)
-    embed.add_field(name="🔝 Nivel", value=user_data.get("nivel", 1), inline=True)
-    embed.add_field(name="🏠 Clan", value=user_data.get("clan", "Sin clan"), inline=True)
-    embed.add_field(name="💪 Poder Total", value=user_data.get("poder_total", 0), inline=True)
+    embed.add_field(name="🆔 User's ID", value=user_data.get("discordID", "Stranger"), inline=False)
+    embed.add_field(name="💰 Coins", value=user_data.get("Coins", 0), inline=True)
+    embed.add_field(name="🏠 Clan", value=user_data.get("clan", "None"), inline=True)
 
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="recompensa", description="Reclama tu recompensa diaria.")
-async def recompensa(interaction: discord.Interaction):
+@bot.tree.command(name="reward", description="Claim your daily reward.")
+async def reward(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     user = users.find_one({"discordID": user_id}) or {}
     now = datetime.utcnow()
@@ -242,47 +236,47 @@ async def recompensa(interaction: discord.Interaction):
         h, resto = divmod(int(rem.total_seconds()), 3600)
         m, s = divmod(resto, 60)
         return await interaction.response.send_message(
-            f"⏳ Debes esperar {h}h {m}m {s}s.", ephemeral=True
+            f"⏳ You must wait {h}h {m}m {s}s.", ephemeral=True
         )
 
     # monedas + DB se escribirán sólo tras el send
-    monedas = random.randint(200, 700)
+    coins = random.randint(200, 700)
 
     # elegir carta
-    rank = elegir_rank_threshold(DAILY_PROBS)
+    rank = choose_rank_threshold(DAILY_PROBS)
     pool = list(core_cards.find({"rank": rank}))
-    carta = random.choice(pool) if pool else None
+    card = random.choice(pool) if pool else None
 
     phrase = random.choice(PHRASES_DAILY)
-    if carta:
+    if card:
         # guardo carta en tu colección
-        agregar_carta_usuario(user_id, carta)
+        add_user_card(user_id, card)
         # genero embed usando carta["image"]
         embed = discord.Embed(
-            color=color_por_rango(carta["rank"]),
-            description=f"**{carta['name']}** • {carta['class']} – {carta['role']}"
+            color=color_by_rank(card["rank"]),
+            description=f"**{card['name']}** • {card['class']} – {card['role']}"
         )
-        embed.set_image(url=carta.get("image", ""))
+        embed.set_image(url=card.get("image", ""))
         await interaction.response.send_message(
-            content=f"{phrase}\n🎁 +{monedas} monedas",
+            content=f"{phrase}\n🎁 +{coins} coins",
             embed=embed,
             ephemeral=True
         )
     else:
         await interaction.response.send_message(
-            f"⚠️ No encontré carta de rango `{rank}`. Pero ganaste +{monedas} monedas.",
+            f"⚠️ I couldn't find a card of rank '{rank}'. But you won +{coins} coins.",
             ephemeral=True
         )
 
     # Sólo si llegaste aquí sin excepciones, actualizo BD:
     users.update_one(
         {"discordID": user_id},
-        {"$inc": {"monedas": monedas}, "$set": {"last_daily": now}},
+        {"$inc": {"coins": coins}, "$set": {"last_daily": now}},
         upsert=True
     )
 
-@bot.tree.command(name="cartarecompensa", description="Reclama una carta bonus (1h cooldown).")
-async def cartarecompensa(interaction: discord.Interaction):
+@bot.tree.command(name="rewardcard", description="Claim your hourly reward.")
+async def rewardcard(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     user = users.find_one({"discordID": user_id}) or {}
     now = datetime.utcnow()
@@ -293,29 +287,29 @@ async def cartarecompensa(interaction: discord.Interaction):
         rem = HOURLY_CD - (now - last)
         minutes = int(rem.total_seconds() // 60)
         return await interaction.response.send_message(
-            f"🕒 Aún debes esperar {minutes} minutos para tu carta bonus.",
+            f"🕒 You must wait {minutes}m.",
             ephemeral=True
         )
 
     # 2) Selección de rango y carta
-    rank = elegir_rank_threshold(HOURLY_PROBS)
+    rank = choose_rank_threshold(HOURLY_PROBS)
     pool = list(core_cards.find({"rank": rank}))
-    carta = random.choice(pool) if pool else None
+    card = random.choice(pool) if pool else None
     phrase = random.choice(PHRASES_HOURLY)
 
     # 3) Intentar enviar respuesta y, si falla, informar
     try:
-        if carta:
+        if card:
             # a) Guardar carta en user_cards + card_count
-            agregar_carta_usuario(user_id, carta)
+            add_user_card(user_id, card)
 
             # b) Crear embed usando carta["image"]
             embed = discord.Embed(
-                title=carta["name"],
-                description=f"Rank: {carta['rank']} • Class: {carta['class']} • Role: {carta['role']}",
-                color=color_por_rango(carta["rank"])
+                title=card["name"],
+                description=f"Rank: {card['rank']} • Class: {card['class']} • Role: {card['role']}",
+                color=color_by_rank(card["rank"])
             )
-            embed.set_image(url=carta["image"])
+            embed.set_image(url=card["image"])
             embed.set_footer(text=phrase)
 
             # c) Enviar
@@ -325,15 +319,15 @@ async def cartarecompensa(interaction: discord.Interaction):
             )
         else:
             await interaction.response.send_message(
-                f"⚠️ No encontré carta de rango `{rank}`.",
+                f"⚠️ I couldn't find a card of rank '{rank}'.",
                 ephemeral=True
             )
     except Exception as e:
         # Log en consola para debugging
-        print(f"[ERROR] /cartarecompensa falló: {e}", flush=True)
+        print(f"[ERROR] /rewardcard falló: {e}", flush=True)
         # Informar al usuario
         return await interaction.response.send_message(
-            "❌ Ocurrió un error al reclamar tu carta. Intenta de nuevo en un rato.",
+            "❌ An error occurred while claiming your card. Please try again later.",
             ephemeral=True
         )
 
@@ -344,7 +338,7 @@ async def cartarecompensa(interaction: discord.Interaction):
         upsert=True
     )
         
-@bot.tree.command(name="balance", description="Consulta cuántas monedas tienes.")
+@bot.tree.command(name="balance", description="Check how many coins you have.")
 async def balance(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
     user_name = interaction.user.name
@@ -353,147 +347,147 @@ async def balance(interaction: discord.Interaction):
     user_data = users.find_one({"discordID": user_id})
 
     if not user_data:
-        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        await interaction.response.send_message("❌ You are not registered. Use '/start' to begin.", ephemeral=True)
         return
 
-    monedas = user_data.get("monedas", 0)
+    coins = user_data.get("coins", 0)
 
     embed = discord.Embed(
-        title=f"💰 Balance de {user_name}",
-        description=f"Tienes **{monedas} monedas** actualmente.",
+        title=f"{user_name}'s balance",
+        description=f"Currently, you have **{coins} coins**.",
         color=discord.Color.gold()
     )
     embed.set_thumbnail(url=avatar_url)
-    embed.set_footer(text="¡Sigue jugando para ganar más monedas!")
+    embed.set_footer(text="Keep playing to earn more coins!")
 
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="apostar", description="Apuesta una cantidad de monedas y pon a prueba tu suerte.")
-@app_commands.describe(cantidad="Cantidad de monedas a apostar")
-async def apostar(interaction: discord.Interaction, cantidad: int):
+@bot.tree.command(name="bet", description="Bet some coins and see if luck's on your side!")
+@app_commands.describe(cantidad="Bet amount")
+async def bet(interaction: discord.Interaction, amount: int):
     user_id = str(interaction.user.id)
     user_name = interaction.user.name
     avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
 
     # Validar cantidad
-    if cantidad <= 0:
-        await interaction.response.send_message("❌ La cantidad debe ser mayor que cero.", ephemeral=True)
+    if amount <= 0:
+        await interaction.response.send_message("❌ The amount must be greater than zero.", ephemeral=True)
         return
 
     user_data = users.find_one({"discordID": user_id})
     if not user_data:
-        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+        await interaction.response.send_message("❌ You are not registered. Use '/start' to begin.", ephemeral=True)
         return
 
-    monedas_actuales = user_data.get("monedas", 0)
-    if cantidad > monedas_actuales:
-        await interaction.response.send_message("❌ No tienes suficientes monedas para apostar esa cantidad.", ephemeral=True)
+    current_coins = user_data.get("coins", 0)
+    if amount > current_coins:
+        await interaction.response.send_message("❌ Hold up—you're out of coins for that one!", ephemeral=True)
         return
 
     # Generar resultado
     prob = random.random()
     if prob < 0.20:
-        multiplicador = 0    # pierde todo
-        resultado = "❌ Perdiste todo"
+        multiplier = 0    # pierde todo
+        result = "❌ You lost everything."
     elif prob < 0.50:
-        multiplicador = 0.5  # pierde la mitad
-        resultado = "⚠️ Perdiste la mitad"
+        multiplier = 0.5  # pierde la mitad
+        result = "⚠️ You lost half."
     elif prob < 0.80:
-        multiplicador = 1    # recupera
-        resultado = "✅ Recuperaste tu apuesta"
+        multiplier = 1    # recupera
+        result = "✅ You recovered your bet."
     elif prob < 0.95:
-        multiplicador = 2    # gana el doble
-        resultado = "💰 ¡Ganaste el doble!"
+        multiplier = 2    # gana el doble
+        result = "💰 You won double!"
     else:
-        multiplicador = 3    # gana el triple
-        resultado = "🔥 ¡CRÍTICO! ¡Ganaste el triple!"
+        multiplier = 3    # gana el triple
+        result = "🔥 A critical surge of luck! You've earned triple the reward!"
 
-    ganancia = int(cantidad * multiplicador)
-    nuevas_monedas = monedas_actuales - cantidad + ganancia
+    gain = int(amount * multiplier)
+    new_coins = current_coins - amount + gain
 
     users.update_one(
         {"discordID": user_id},
-        {"$set": {"monedas": nuevas_monedas}}
+        {"$set": {"coins": new_coins}}
     )
 
     # Embed del resultado
     embed = discord.Embed(
-        title="🎲 Resultado de la apuesta",
-        description=f"{resultado}\n\n💸 Apostaste: **{cantidad} monedas**\n💰 Ganaste: **{ganancia} monedas**",
+        title="🎲 Bet result",
+        description=f"{result}\n\n💸 You bet: **{amount} coins**\n💰 You won: **{gain} coins**",
         color=discord.Color.orange()
     )
     embed.set_thumbnail(url=avatar_url)
-    embed.set_footer(text=f"Nuevo balance: {nuevas_monedas} monedas")
+    embed.set_footer(text=f"New balance: {new_coins} coins")
 
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name="dar", description="Envía monedas a otro jugador.")
-@app_commands.describe(usuario="Jugador que recibirá las monedas", cantidad="Cantidad a enviar")
-async def dar(interaction: discord.Interaction, usuario: discord.User, cantidad: int):
-    emisor_id = str(interaction.user.id)
-    receptor_id = str(usuario.id)
-    emisor_nombre = interaction.user.name
+@bot.tree.command(name="give", description="Send coins to another player.")
+@app_commands.describe(user="Player who will receive the coins", amount="Amount")
+async def give(interaction: discord.Interaction, user: discord.User, amount: int):
+    transmitter_id = str(interaction.user.id)
+    receiver_id = str(user.id)
+    transmitter_name = interaction.user.name
     avatar_url = interaction.user.avatar.url if interaction.user.avatar else interaction.user.default_avatar.url
 
-    if cantidad <= 0:
-        await interaction.response.send_message("❌ La cantidad debe ser mayor que cero.", ephemeral=True)
+    if amount <= 0:
+        await interaction.response.send_message("❌ The amount must be greater than zero.", ephemeral=True)
         return
 
-    if emisor_id == receptor_id:
-        await interaction.response.send_message("❌ No puedes darte monedas a ti mismo, genio.", ephemeral=True)
+    if transmitter_id == receiver_id:
+        await interaction.response.send_message("❌ You can't give coins to yourself, genius.", ephemeral=True)
         return
 
     # Verificar que ambos estén registrados
-    emisor = users.find_one({"discordID": emisor_id})
-    receptor = users.find_one({"discordID": receptor_id})
+    transmitter = users.find_one({"discordID": transmitter_id})
+    receiver = users.find_one({"discordID": receiver_id})
 
-    if not emisor:
-        await interaction.response.send_message("❌ No estás registrado. Usa `/start` para comenzar.", ephemeral=True)
+    if not transmitter:
+        await interaction.response.send_message("❌ You are not registered. Use '/start' to begin.", ephemeral=True)
         return
 
-    if not receptor:
-        await interaction.response.send_message(f"❌ {usuario.name} no está registrado.", ephemeral=True)
+    if not receiver:
+        await interaction.response.send_message(f"❌ {user.name} is not registered..", ephemeral=True)
         return
 
-    saldo_emisor = emisor.get("monedas", 0)
-    if saldo_emisor < cantidad:
-        await interaction.response.send_message("❌ No tienes suficientes monedas para enviar esa cantidad.", ephemeral=True)
+    transmitter_holdings = transmitter.get("coins", 0)
+    if transmitter_holdings < amount:
+        await interaction.response.send_message("❌ You don't have enough coins to send that amount.", ephemeral=True)
         return
 
     # Transferencia
-    nuevo_emisor = saldo_emisor - cantidad
-    nuevo_receptor = receptor.get("monedas", 0) + cantidad
+    new_transmitter = transmitter_holdings - amount
+    new_receiver = receiver.get("money", 0) + amount
 
-    users.update_one({"discordID": emisor_id}, {"$set": {"monedas": nuevo_emisor}})
-    users.update_one({"discordID": receptor_id}, {"$set": {"monedas": nuevo_receptor}})
+    users.update_one({"discordID": transmitter_id}, {"$set": {"coins": new_transmitter}})
+    users.update_one({"discordID": receiver_id}, {"$set": {"coins": new_receiver}})
 
     # Embed de confirmación
     embed = discord.Embed(
-        title="💸 Transferencia completada",
+        title="💸 Transfer completed",
         description=(
-            f"Has enviado **{cantidad} monedas** a {usuario.mention}.\n"
-            f"Tu nuevo saldo es de **{nuevo_emisor} monedas**."
+            f"You sent **{amount} coins** to {user.mention}.\n"
+            f"Your new balance is **{new_transmitter} coins**."
         ),
         color=discord.Color.green()
     )
     embed.set_thumbnail(url=avatar_url)
-    embed.set_footer(text="Gracias por compartir tus riquezas 💰")
+    embed.set_footer(text="Your generosity knows no bounds—thanks for sharing your riches! 💰")
 
     await interaction.response.send_message(embed=embed)
 
 class CatalogView(ui.View):
-    def __init__(self, cartas, per_page: int = 10):
+    def __init__(self, cards, per_page: int = 10):
         super().__init__(timeout=None)
-        self.cartas = cartas
+        self.cards = cards
         self.per_page = per_page
         self.current = 0
 
-        self.select = ui.Select(placeholder="Selecciona una carta para ver detalles", options=[])
+        self.select = ui.Select(placeholder="Select a card to view details.", options=[])
         self.select.callback = self.on_select
         self.add_item(self.select)
 
-        self.prev_button = ui.Button(label="⬅️ Atrás", style=ButtonStyle.secondary)
-        self.next_button = ui.Button(label="➡️ Siguiente", style=ButtonStyle.secondary)
+        self.prev_button = ui.Button(label="⬅️ Back", style=ButtonStyle.secondary)
+        self.next_button = ui.Button(label="➡️ Next", style=ButtonStyle.secondary)
         self.prev_button.callback = self.on_prev
         self.next_button.callback = self.on_next
         self.add_item(self.prev_button)
@@ -504,14 +498,14 @@ class CatalogView(ui.View):
     def update_select_options(self):
         start = self.current * self.per_page
         end = start + self.per_page
-        page = self.cartas[start:end]
+        page = self.cards[start:end]
 
         self.select.options.clear()
         for c in page:
             self.select.append_option(discord.SelectOption(label=f"{c['name']} [{c['rank']}]",value=c['id']))
 
         self.prev_button.disabled = self.current == 0
-        max_page = (len(self.cartas) - 1) // self.per_page
+        max_page = (len(self.cards) - 1) // self.per_page
         self.next_button.disabled = self.current >= max_page
 
     async def on_prev(self, interaction: discord.Interaction):
@@ -526,21 +520,21 @@ class CatalogView(ui.View):
         await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     async def on_select(self, interaction: discord.Interaction):
-        carta_id = self.select.values[0]
-        carta = next((c for c in self.cartas if c['id'] == carta_id), None)
-        if carta:
-            embed = generar_embed_carta(carta, mostrar_footer=False)
+        card_id = self.select.values[0]
+        card = next((c for c in self.cards if c['id'] == card_id), None)
+        if card:
+            embed = generate_card_embed(card, show_footer=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
-            await interaction.response.send_message("❌ No se encontró la carta.", ephemeral=True)
+            await interaction.response.send_message("❌ Card not found.", ephemeral=True)
 
     def get_embed(self):
         start = self.current * self.per_page
         end = start + self.per_page
-        page = self.cartas[start:end]
+        page = self.cards[start:end]
 
         embed = discord.Embed(
-            title=f"📚 Catálogo (Página {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
+            title=f"📚 Catalog (Page {self.current+1}/{(len(self.cartas)-1)//self.per_page+1})",
             color=discord.Color.blurple()
         )
         for c in page:
@@ -551,17 +545,17 @@ class CatalogView(ui.View):
             )
         return embed
 
-@bot.tree.command(name="catalog", description="Muestra todas las cartas con navegación y opción de ver detalles.")
+@bot.tree.command(name="catalog", description="Show all available cards.")
 async def catalog(interaction: discord.Interaction):
     all_cards = list(core_cards.find())
     if not all_cards:
-        await interaction.response.send_message("❌ No hay cartas en la base de datos.", ephemeral=True)
+        await interaction.response.send_message("❌ No cards found in the database.", ephemeral=True)
         return
 
     view = CatalogView(all_cards, per_page=10)
     await interaction.response.send_message(embed=view.get_embed(), view=view)
 
-@bot.tree.command(name="collection", description="Prueba básica: lista tus cartas con paginación.")
+@bot.tree.command(name="collection", description="Show all your owned cards.")
 async def collection(interaction: discord.Interaction):
     uid = str(interaction.user.id)
     user_doc = user_cards.find_one({"discordID": uid})
@@ -569,7 +563,7 @@ async def collection(interaction: discord.Interaction):
 
     if not cards:
         return await interaction.response.send_message(
-            "❌ No tienes cartas en tu colección.", ephemeral=True
+            "❌ Your collection is empty.", ephemeral=True
         )
 
     class Paginator(ui.View):
@@ -625,11 +619,11 @@ async def collection(interaction: discord.Interaction):
     view = Paginator(cards)
     await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
 
-@bot.tree.command(name="buscarcarta", description="Busca una carta por nombre, clase, rol o rango.")
+@bot.tree.command(name="searchcard", description="Search for a card by name, class, role, or rank.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
-async def buscarcarta(interaction: discord.Interaction, name: str = None, class_: str = None, role: str = None, rank: str = None):
+async def searchcard(interaction: discord.Interaction, name: str = None, class_: str = None, role: str = None, rank: str = None):
     if not any([name, class_, role, rank]):
-        await interaction.response.send_message("❗ Debes especificar al menos un criterio para buscar.", ephemeral=True)
+        await interaction.response.send_message("❗ At least one search parameter is required.", ephemeral=True)
         return
 
     filtros = {}
@@ -642,17 +636,17 @@ async def buscarcarta(interaction: discord.Interaction, name: str = None, class_
     if rank:
         filtros["rank"] = rank.upper()
 
-    cartas = list(core_cards.find(filtros))
+    cards = list(core_cards.find(filtros))
 
-    if not cartas:
-        await interaction.response.send_message("❌ No se encontraron cartas con los criterios dados.", ephemeral=True)
+    if not cards:
+        await interaction.response.send_message("❌ No matching cards found.", ephemeral=True)
         return
 
-    if len(cartas) == 1:
-        embed = generar_embed_carta(cartas[0], con_footer=False)
+    if len(cards) == 1:
+        embed = generate_card_embed(cards[0], con_footer=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
     else:
-        view = CatalogView(cartas, per_page=10)
+        view = CatalogView(cards, per_page=10)
         await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
 
 # —————————————————————————————
@@ -670,7 +664,7 @@ class ShopButton(ui.Button):
         self.pack_id = pack_id
         # llamamos a la BD para obtener nombre / precio
         pack = shop_packs.find_one({"id": pack_id})
-        label = f"Comprar {pack['name']}"
+        label = f"Buy {pack['name']}"
         super().__init__(label=label, style=discord.ButtonStyle.green, custom_id=pack_id)
 
     async def callback(self, interaction: Interaction):
@@ -678,21 +672,21 @@ class ShopButton(ui.Button):
         # 1) Verifico usuario
         user = users.find_one({"discordID": user_id})
         if not user:
-            return await interaction.response.send_message("❌ No estás registrado. Usa `/start`.", ephemeral=True)
+            return await interaction.response.send_message("❌ You are not registered. Use '/start' to begin.", ephemeral=True)
 
         # 2) Re-leo pack desde BD (por si cambió)
         pack = shop_packs.find_one({"id": self.pack_id})
         if not pack:
-            return await interaction.response.send_message("❌ Este pack ya no existe.", ephemeral=True)
+            return await interaction.response.send_message("❌ This pack is no longer available.", ephemeral=True)
 
         price = pack["price"]
-        if user.get("monedas", 0) < price:
-            return await interaction.response.send_message("❌ No tienes suficientes monedas.", ephemeral=True)
+        if user.get("coins", 0) < price:
+            return await interaction.response.send_message("❌ You don't have enough coins.", ephemeral=True)
 
         # 3) Transacción atómica: resto monedas
         users.update_one(
             {"discordID": user_id},
-            {"$inc": {"monedas": -price}}
+            {"$inc": {"coins": -price}}
         )
 
         # 4) Sumar pack al inventario con $inc o $push atómico
@@ -710,30 +704,30 @@ class ShopButton(ui.Button):
 
         # 5) Confirmación al usuario
         await interaction.response.send_message(
-            f"📦 Has comprado un **{pack['name']}** por {price} monedas.",
+            f"📦 You have purchased a **{pack['name']}** for {price} coins.",
             ephemeral=True
         )
 
 # —————————————————————————————
 # Comando /shop corregido
 # —————————————————————————————
-@bot.tree.command(name="shop", description="Mira y compra packs en la tienda.")
-async def shop(interaction: Interaction):
+@bot.tree.command(name="store", description="View and buy packs in the store.")
+async def store(interaction: Interaction):
     user_id = str(interaction.user.id)
 
     # Validar registro y saldo
     user = users.find_one({"discordID": user_id})
     if not user:
-        return await interaction.response.send_message("❌ No estás registrado. Usa `/start`.", ephemeral=True)
+        return await interaction.response.send_message("❌ You are not registered. Use '/start' to begin.", ephemeral=True)
 
     packs = list(shop_packs.find())
     if not packs:
-        return await interaction.response.send_message("🛒 La tienda está vacía.", ephemeral=True)
+        return await interaction.response.send_message("🛒 The store is out of stock.", ephemeral=True)
 
     # Construyo embed
     embed = Embed(
-        title="🛍️ Tienda de Packs",
-        description=f"💰 Monedas: **{user.get('monedas', 0)}**",
+        title="🛍️ Packs Store",
+        description=f"💰 Coins: **{user.get('coins', 0)}**",
         color=discord.Color.gold()
     )
     for p in packs:
@@ -747,24 +741,24 @@ async def shop(interaction: Interaction):
     view = ShopView(packs)
     await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-class AbrirPackView(ui.View):
+class OpenPackView(ui.View):
     def __init__(self, uid: str, packs: list[dict]):
         super().__init__(timeout=None)
         self.uid = uid
         for pack in packs:
-            self.add_item(AbrirPackButton(pack["id"], pack["count"], uid))
+            self.add_item(OpenPackButton(pack["id"], pack["count"], uid))
 
-class AbrirPackButton(ui.Button):
+class OpenPackButton(ui.Button):
     def __init__(self, pack_id: str, count: int, user_id: str):
         pack = shop_packs.find_one({"id": pack_id})
-        label = f"Abrir {pack['name']} ({count})"
-        super().__init__(label=label, style=ButtonStyle.blurple, custom_id=f"abrir_{pack_id}")
+        label = f"Open {pack['name']} ({count})"
+        super().__init__(label=label, style=ButtonStyle.blurple, custom_id=f"open_{pack_id}")
         self.pack_id = pack_id
         self.user_id = user_id
 
     async def callback(self, interaction: Interaction):
         if str(interaction.user.id) != self.user_id:
-            return await interaction.response.send_message("❌ Este botón no es para ti.", ephemeral=True)
+            return await interaction.response.send_message("❌ This button isn't meant for you.", ephemeral=True)
 
         await interaction.response.defer()
 
@@ -774,7 +768,7 @@ class AbrirPackButton(ui.Button):
             {"$inc": {"packs.$.count": -1}}
         )
         if result.modified_count == 0:
-            return await interaction.followup.send("❌ Ya no te queda ese pack.", ephemeral=True)
+            return await interaction.followup.send("❌ You don't have that pack anymore.", ephemeral=True)
 
         # 2. Limpiar los que quedaron en 0
         user_packs.update_one(
@@ -784,59 +778,59 @@ class AbrirPackButton(ui.Button):
 
         # 3. Elegir carta y agregarla
         pack = shop_packs.find_one({"id": self.pack_id})
-        rank = elegir_rank_threshold(pack["rewards"])
+        rank = choose_rank_threshold(pack["rewards"])
         pool = list(core_cards.find({"rank": rank}))
-        carta = random.choice(pool)
-        agregar_carta_usuario(self.user_id, carta)
+        card = random.choice(pool)
+        add_user_card(self.user_id, card)
 
         # Mostrar solo la imagen de la carta
-        carta_embed = Embed(color=color_por_rango(carta["rank"]))
-        carta_embed.set_image(url=carta.get("image", ""))
-        carta_embed.set_footer(text=f"🎁 Abriste un {pack['name']}")
+        card_embed = Embed(color=color_by_rank(card["rank"]))
+        card_embed.set_image(url=card.get("image", ""))
+        card_embed.set_footer(text=f"🎁 You opened a {pack['name']}")
 
 
         # 4. Mostrar packs restantes
         doc = user_packs.find_one({"discordID": self.user_id})
-        packs_actuales = doc.get("packs", [])
+        current_packs = doc.get("packs", [])
         desc = "\n".join(
             f"{shop_packs.find_one({'id': p['id']})['name']} ({p['count']})"
-            for p in packs_actuales
-        ) or "No tienes packs."
+            for p in current_packs
+        ) or "You have no packs."
 
-        lista_embed = Embed(
-            title="📦 Packs disponibles",
+        embed_list = Embed(
+            title="📦 Available packs",
             description=desc,
             color=Color.purple()
         )
 
         await interaction.followup.send(
-            content=f"{interaction.user.mention} abrió un pack!",
-            embeds=[lista_embed, carta_embed],
-            view=AbrirPackView(self.user_id, packs_actuales)
+            content=f"{interaction.user.mention} opened a pack!",
+            embeds=[embed_list, card_embed],
+            view=OpenPackView(self.user_id, current_packs)
         )
 
-@bot.tree.command(name="abrir", description="Abre uno de tus packs guardados.")
-async def abrir(interaction: Interaction):
+@bot.tree.command(name="open", description="Open one of your stored packs.")
+async def open(interaction: Interaction):
     uid = str(interaction.user.id)
     doc = user_packs.find_one({"discordID": uid})
     if not doc or not doc.get("packs"):
-        return await interaction.response.send_message("❌ No tienes packs guardados.", ephemeral=True)
+        return await interaction.response.send_message("❌ You don't have any stored packs.", ephemeral=True)
 
     desc = "\n".join(
         f"{shop_packs.find_one({'id': p['id']})['name']} ({p['count']})"
         for p in doc["packs"]
     )
     embed = Embed(
-        title="🎁 Tus Packs",
+        title="🎁 Your Packs",
         description=desc,
         color=Color.purple()
     )
-    view = AbrirPackView(uid, doc["packs"])
+    view = OpenPackView(uid, doc["packs"])
     await interaction.response.send_message(embed=embed, view=view)
 
-@bot.tree.command(name="vender", description="Vende una carta que poseas usando su ID único.")
-@app_commands.describe(id="ID de la carta que deseas vender")
-async def vender(interaction: Interaction, id: str):
+@bot.tree.command(name="sell", description="Sell a card from your collection.")
+@app_commands.describe(id="Card ID")
+async def sell(interaction: Interaction, id: str):
     uid = str(interaction.user.id)
 
     # 1️⃣ Comprobar si la carta está en el equipo activo
@@ -848,105 +842,105 @@ async def vender(interaction: Interaction, id: str):
             used_ids += [str(cid) for cid in team_doc["team"].get(zone, [])]
         if id in used_ids:
             return await interaction.response.send_message(
-                "❌ No puedes vender una carta que está en tu equipo activo.", 
+                "❌ Cards in your team cannot be sold.", 
                 ephemeral=True
             )
 
     # 2️⃣ Recuperar la carta por su card_id de tu colección
     doc = user_cards.find_one({"discordID": uid})
     if not doc or "cards" not in doc:
-        return await interaction.response.send_message("❌ No tienes cartas.", ephemeral=True)
+        return await interaction.response.send_message("❌ You don't have cards.", ephemeral=True)
 
-    carta = next((c for c in doc["cards"] if str(c.get("card_id")) == id), None)
-    if not carta:
+    card = next((c for c in doc["cards"] if str(c.get("card_id")) == id), None)
+    if not card:
         return await interaction.response.send_message(
-            "❌ No se encontró ninguna carta con ese ID.", 
+            "❌ No card matches that ID.", 
             ephemeral=True
         )
 
     # 3️⃣ Determinar valor de venta según rango
-    rango = carta.get("rank", "E")
-    valor = RANK_VALUE.get(rango, 0)
+    rank = card.get("rank", "E")
+    value = RANK_VALUE.get(rank, 0)
 
     # 4️⃣ Eliminar la carta de tu colección
     user_cards.update_one(
         {"discordID": uid},
-        {"$pull": {"cards": {"card_id": carta["card_id"]}}}
+        {"$pull": {"cards": {"card_id": card["card_id"]}}}
     )
 
     # 5️⃣ Otorgar las monedas
     users.update_one(
         {"discordID": uid},
-        {"$inc": {"monedas": valor}}
+        {"$inc": {"coins": value}}
     )
 
     # 6️⃣ Confirmación al usuario
     embed = Embed(
-        title="💰 Carta vendida",
+        title="💰 Card sold",
         description=(
-            f"Vendiste **{carta['name']}** [{rango}]\n"
-            f"Ganaste **{valor} monedas**."
+            f"You sold **{card['name']}** [{rank}]\n"
+            f"You earned **{value} coins**."
         ),
         color=Color.gold()
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="formacion", description="Elige tu formación de combate.")
-@app_commands.describe(opcion="Selecciona una formación predeterminada.")
+@bot.tree.command(name="formation", description="Choose your battle formation.")
+@app_commands.describe(opcion="Choose your formation.")
 @app_commands.choices(
     opcion=[
-        app_commands.Choice(name="🛡️ Defensiva — 2 frontlines, 1 midline, 1 backline", value="defensiva"),
-        app_commands.Choice(name="🔥 Ofensiva — 1 frontline, 2 midlines, 1 backline", value="ofensiva"),
-        app_commands.Choice(name="🔄 Versátil — 1 forntline, 1 midline, 2 backlines", value="versatil"),
+        app_commands.Choice(name="🛡️ Defensive — 2 frontlines, 1 midline, 1 backline", value="defensive"),
+        app_commands.Choice(name="🔥 Offensive — 1 frontline, 2 midlines, 1 backline", value="offensive"),
+        app_commands.Choice(name="🔄 Versatile — 1 forntline, 1 midline, 2 backlines", value="versatile"),
     ]
 )
-async def formacion(interaction: discord.Interaction, opcion: app_commands.Choice[str]):
+async def formation(interaction: discord.Interaction, option: app_commands.Choice[str]):
     uid = str(interaction.user.id)
 
-    formaciones = {
-        "defensiva": {
+    formations = {
+        "defensive": {
             "slots": ["frontline", "frontline", "midline", "backline"],
-            "desc": "🛡️ 2 defensores al frente, ideal para resistir."
+            "desc": "🛡️ 2 defenders up front, perfect for holding the line."
         },
-        "ofensiva": {
+        "offensive": {
             "slots": ["frontline", "midline", "midline", "backline"],
-            "desc": "🔥 Prioriza ataque con más ofensiva en el medio."
+            "desc": "🔥 Emphasizes offense, concentrating power through the middle."
         },
-        "versatil": {
+        "versatile": {
             "slots": ["frontline", "midline", "backline", "backline"],
-            "desc": "🔄 Buena rotación con retaguardia reforzada."
+            "desc": "🔄 Stable formation with a fortified rear."
         },
     }
 
-    formacion = formaciones[opcion.value]
+    formation = formations[option.value]
     user_formations.update_one(
         {"discordID": uid},
-        {"$set": {"formation": formacion["slots"]}},
+        {"$set": {"formation": formation["slots"]}},
         upsert=True
     )
 
     await interaction.response.send_message(
-        f"✅ Elegiste la formación **{opcion.name.split('—')[0].strip()}**\n{formacion['desc']}",
+        f"✅ You chose the **{option.name.split('—')[0].strip()}** formation\n{formation['desc']}",
         ephemeral=True
     )
 
-@bot.tree.command(name="asignar", description="Asigna una carta a un slot de tu formación.")
+@bot.tree.command(name="assign", description="Assign a card to a slot in your formation.")
 @app_commands.describe(
-    slot="Número de slot (1 a 4) según tu formación",
-    id="ID de la carta que quieres asignar"
+    slot="Slot number (1 to 4) based on your formation",
+    id="Card ID"
 )
-async def asignar(interaction: Interaction, slot: int, id: str):
+async def assign(interaction: Interaction, slot: int, id: str):
     uid = str(interaction.user.id)
     # 1) Formación
     fdoc = user_formations.find_one({"discordID": uid})
     if not fdoc or "formation" not in fdoc:
         return await interaction.response.send_message(
-            "❌ Primero elige tu formación con `/formacion`.", ephemeral=True
+            "❌ Start by selecting your formation using '/formacion'.", ephemeral=True
         )
     slots = fdoc["formation"]
     if slot < 1 or slot > len(slots):
         return await interaction.response.send_message(
-            f"❌ Slot inválido. Usa un número entre 1 y {len(slots)}.", ephemeral=True
+            f"❌ That slot doesn't exist! Pick a number from 1 to {len(slots)}.", ephemeral=True
         )
 
     # 2) Comprueba que tienes esa carta
@@ -954,7 +948,7 @@ async def asignar(interaction: Interaction, slot: int, id: str):
     your_cards = {str(c["card_id"]): c for c in udoc.get("cards", [])} if udoc else {}
     if id not in your_cards:
         return await interaction.response.send_message(
-            f"❌ No encontré la carta con ID `{id}` en tu colección.", ephemeral=True
+            f"❌ The card wasn't found in your collection.", ephemeral=True
         )
 
     # 3) Recupera o crea tu team
@@ -973,17 +967,17 @@ async def asignar(interaction: Interaction, slot: int, id: str):
     )
 
     await interaction.response.send_message(
-        f"✅ Carta `{id}` asignada al slot {slot} ({slots[slot-1].capitalize()}).",
+        f"✅ Card successfully assigned to the slot. {slot} ({slots[slot-1].capitalize()}).",
         ephemeral=True
     )
 
-@bot.tree.command(name="equipo", description="Muestra tu formación y cartas asignadas.")
-async def equipo(interaction: Interaction):
+@bot.tree.command(name="team", description="Show your formation and assigned cards.")
+async def team(interaction: Interaction):
     uid = str(interaction.user.id)
     fdoc = user_formations.find_one({"discordID": uid})
     if not fdoc or "formation" not in fdoc:
         return await interaction.response.send_message(
-            "❌ Primero elige tu formación con `/formacion`.", ephemeral=True
+            "❌ Start by selecting your formation using '/formacion'.", ephemeral=True
         )
     slots = fdoc["formation"]
 
@@ -1006,44 +1000,44 @@ async def equipo(interaction: Interaction):
             lines.append(f"{idx}. {role.capitalize()} — *(vacío)*")
 
     embed = Embed(
-        title="📋 Tu equipo actual",
+        title="📋 Your current lineup",
         description="\n".join(lines),
         color=Color.blue()
     )
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="intercambiar", description="Intercambia dos cartas de tu equipo entre slots.")
+@bot.tree.command(name="swap", description="Swap the positions of two cards in your team.")
 @app_commands.describe(
-    slot1="Primer slot que quieres intercambiar",
-    slot2="Segundo slot que quieres intercambiar"
+    slot1="First slot you want to swap",
+    slot2="Second slot you want to swap"
 )
-async def intercambiar(interaction: discord.Interaction, slot1: int, slot2: int):
+async def swap(interaction: discord.Interaction, slot1: int, slot2: int):
     uid = str(interaction.user.id)
 
     # Verificamos formación activa
     fdoc = user_formations.find_one({"discordID": uid})
     if not fdoc or "formation" not in fdoc:
         return await interaction.response.send_message(
-            "❌ No tienes formación activa. Usa `/formacion` primero.", ephemeral=True
+            "❌ Start by selecting your formation using '/formacion'.", ephemeral=True
         )
     slots = fdoc["formation"]
 
     # Validamos números
     if slot1 < 1 or slot1 > len(slots) or slot2 < 1 or slot2 > len(slots):
         return await interaction.response.send_message(
-            f"❌ Los slots deben ser entre 1 y {len(slots)}.", ephemeral=True
+            f"❌ That slot doesn't exist! Pick a number from 1 to {len(slots)}.", ephemeral=True
         )
 
     if slot1 == slot2:
         return await interaction.response.send_message(
-            "❌ No puedes intercambiar el mismo slot.", ephemeral=True
+            "❌ You can't swap the same slot.", ephemeral=True
         )
 
     # Cargamos el equipo
     tdoc = user_teams.find_one({"discordID": uid})
     if not tdoc or "team" not in tdoc:
         return await interaction.response.send_message(
-            "❌ No tienes cartas asignadas todavía.", ephemeral=True
+            "❌ No cards have been assigned yet.", ephemeral=True
         )
 
     team = tdoc["team"]
@@ -1058,68 +1052,68 @@ async def intercambiar(interaction: discord.Interaction, slot1: int, slot2: int)
     )
 
     await interaction.response.send_message(
-        f"✅ Intercambiadas las cartas del slot {slot1} y slot {slot2}.",
+        f"✅ Cards in slot {slot1} and slot {slot2} have been swapped.",
         ephemeral=True
     )
 
-@bot.tree.command(name="vaciar_equipo", description="Vacía completamente tu equipo actual.")
-async def vaciar_equipo(interaction: discord.Interaction):
+@bot.tree.command(name="clearteam", description="Remove all cards from your current team.")
+async def clearteam(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
     # Verificamos si el usuario tiene formación
     fdoc = user_formations.find_one({"discordID": uid})
     if not fdoc or "formation" not in fdoc:
         return await interaction.response.send_message(
-            "❌ No tienes formación activa. Usa `/formacion` primero.", ephemeral=True
+            "❌ Start by selecting your formation using '/formacion'.", ephemeral=True
         )
     slots = fdoc["formation"]
 
     # Creamos un equipo vacío del mismo tamaño
-    equipo_vacio = [""] * len(slots)
+    empty_team = [""] * len(slots)
 
     user_teams.update_one(
         {"discordID": uid},
-        {"$set": {"team": equipo_vacio}},
+        {"$set": {"team": empty_team}},
         upsert=True
     )
 
     await interaction.response.send_message(
-        "✅ Tu equipo ha sido vaciado exitosamente.",
+        "✅ Successfully removed all cards from your team.",
         ephemeral=True
     )
 
-@bot.tree.command(name="remover", description="Remueve una carta de tu equipo en un slot específico.")
-@app_commands.describe(slot="Número de slot (1 a 4) que quieres liberar")
-async def remover(interaction: discord.Interaction, slot: int):
+@bot.tree.command(name="remove", description="Remove a card from a specific slot in your team.")
+@app_commands.describe(slot="Choose a slot number (1 to 4) to clear.")
+async def remove(interaction: discord.Interaction, slot: int):
     uid = str(interaction.user.id)
 
     # 1) Formación
     fdoc = user_formations.find_one({"discordID": uid})
     if not fdoc or "formation" not in fdoc:
         return await interaction.response.send_message(
-            "❌ Primero elige tu formación con `/formacion`.", ephemeral=True
+            "❌ Start by selecting your formation using '/formacion'.", ephemeral=True
         )
     slots = fdoc["formation"]
     if slot < 1 or slot > len(slots):
         return await interaction.response.send_message(
-            f"❌ Slot inválido. Usa un número entre 1 y {len(slots)}.", ephemeral=True
+            f"❌ That slot doesn't exist! Pick a number from 1 to {len(slots)}.", ephemeral=True
         )
 
     # 2) Recupera el team
     tdoc = user_teams.find_one({"discordID": uid})
     if not tdoc or "team" not in tdoc:
         return await interaction.response.send_message(
-            "❌ No tienes cartas asignadas todavía.", ephemeral=True
+            "❌ No cards have been assigned yet.", ephemeral=True
         )
     team = tdoc["team"]
 
     if team[slot-1] == "":
         return await interaction.response.send_message(
-            f"❌ El slot {slot} ya está vacío.", ephemeral=True
+            f"❌ Slot {slot} is already empty.", ephemeral=True
         )
 
     # 3) Remover carta
-    carta_removida = team[slot-1]
+    removed_card = team[slot-1]
     team[slot-1] = ""
 
     # 4) Guardar cambios
@@ -1129,77 +1123,77 @@ async def remover(interaction: discord.Interaction, slot: int):
     )
 
     await interaction.response.send_message(
-        f"✅ Carta `{carta_removida}` removida del slot {slot} ({slots[slot-1].capitalize()}).",
+        f"✅ Card '{removed_card}' removed from slot {slot} ({slots[slot-1].capitalize()}).",
         ephemeral=True
     )
 
 # ---------- Simulación de Combate ----------
 
-def simular_combate(e1, e2):
+def simulate_battle(e1, e2):
     log = []
     ronda = 1
-    cartas1 = [copy.deepcopy(c) for c in e1]
-    cartas2 = [copy.deepcopy(c) for c in e2]
+    cards1 = [copy.deepcopy(c) for c in e1]
+    cards2 = [copy.deepcopy(c) for c in e2]
 
-    frases_ronda = [
-        "Comienza una nueva ronda de enfrentamientos.",
-        "Las cartas se preparan para otra batalla feroz.",
-        "Una nueva ronda inicia: cada movimiento puede ser decisivo."
+    round_phrases = [
+        "A new round of battles begins.",
+        "The cards are preparing for another fierce battle.",
+        "A new round begins: every move could be decisive."
     ]
 
     while True:
-        log.append(random.choice(frases_ronda) + f" (Ronda {ronda})")
+        log.append(random.choice(round_phrases) + f" (Round {round})")
 
-        pool = [(c, 1) for c in cartas1 if c['hp'] > 0] + [(c, 2) for c in cartas2 if c['hp'] > 0]
+        pool = [(c, 1) for c in cards1 if c['hp'] > 0] + [(c, 2) for c in cards2 if c['hp'] > 0]
         pool.sort(key=lambda x: x[0]['vel'] + random.randint(0, 3), reverse=True)
 
-        for carta, team in pool:
-            if carta['hp'] <= 0:
+        for card, team in pool:
+            if card['hp'] <= 0:
                 continue
 
-            aliados = cartas1 if team == 1 else cartas2
-            enemigos = cartas2 if team == 1 else cartas1
-            vivos = [c for c in enemigos if c['hp'] > 0]
+            allies = cards1 if team == 1 else cards2
+            enemies = cards2 if team == 1 else cards1
+            alives = [c for c in enemies if c['hp'] > 0]
 
-            if not vivos:
-                ganador = "Equipo 1" if team == 1 else "Equipo 2"
-                return ganador, log
+            if not alives:
+                winner = "Team 1" if team == 1 else "Team 2"
+                return winner, log
 
-            objetivo = min(vivos, key=lambda x: x['hp'])
-            role = carta['role']
+            target = min(alives, key=lambda x: x['hp'])
+            role = card['role']
 
             # --- Roles de soporte ---
             if role == "healer":
-                heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp'] and a != carta]
-                if heridos:
-                    a = random.choice(heridos)
-                    amt = int(a['max_hp'] * 0.2 + carta['int'] * 0.1)
+                injured = [a for a in allies if 0 < a['hp'] < a['max_hp'] and a != card]
+                if injured:
+                    a = random.choice(injured)
+                    amt = int(a['max_hp'] * 0.2 + card['int'] * 0.1)
                     a['hp'] = min(a['hp'] + amt, a['max_hp'])
-                    frases = [
-                        "{carta} restauró la vitalidad de {a}, curándolo +{amt}HP.",
-                        "{carta} lanzó un hechizo curativo sobre {a}, recuperando +{amt}HP.",
-                        "{carta} atendió las heridas de {a}, sanándolo +{amt}HP."
+                    phrases = [
+                        "{card} restored {a}'s vitality, healing +{amt}HP.",
+                        "{card} cast a healing spell on {a}, restoring +{amt}HP.",
+                        "{card}  tended to {a}'s wounds, healing +{amt}HP."
                     ]
-                    log.append(random.choice(frases).format(carta=carta["name"], a=a["name"], amt=amt))
+                    log.append(random.choice(frases).format(card=card["name"], a=a["name"], amt=amt))
                 continue
 
             if role == "radiant healer":
-                heridos = [a for a in aliados if 0 < a['hp'] < a['max_hp'] and a != carta]
-                if heridos:
-                    a = random.choice(heridos)
-                    amt = int(a['max_hp'] * 0.4 + carta['int'] * 0.2)
+                injured = [a for a in allies if 0 < a['hp'] < a['max_hp'] and a != card]
+                if injured:
+                    a = random.choice(injured)
+                    amt = int(a['max_hp'] * 0.4 + card['int'] * 0.2)
                     a['hp'] = min(a['hp'] + amt, a['max_hp'])
-                    frases = [
-                        "{carta} invocó una energía radiante sobre {a}, sanándolo +{amt}HP.",
-                        "{carta} desbordó a {a} con una ola de luz curativa (+{amt}HP).",
-                        "{carta} iluminó las heridas de {a}, recuperándolo +{amt}HP."
+                    phrases = [
+                        "{card} summoned radiant energy over {a}, healing them +{amt}HP.",
+                        "{card} bathed {a} in a wave of healing light (+{amt}HP).",
+                        "{card} shone healing light upon {a}'s wounds, bringing recovery +{amt}HP."
                     ]
-                    log.append(random.choice(frases).format(carta=carta["name"], a=a["name"], amt=amt))
+                    log.append(random.choice(phrases).format(card=card["name"], a=a["name"], amt=amt))
                 continue
 
             if role in ["aura", "aura sparkling", "noble aura"]:
-                for a in aliados:
-                    if a == carta:
+                for a in allies:
+                    if a == card:
                         continue
                     if role == "aura":
                         a['atk'] += 1
@@ -1208,148 +1202,148 @@ def simular_combate(e1, e2):
                     elif role == "noble aura":
                         a['atk'] += 2
                         a['def'] += 2
-                frases = [
-                    "{carta} inspiró a su equipo aumentando su fuerza.",
-                    "{carta} fortaleció a sus aliados con su energía.",
-                    "{carta} irradiaba poder y motivó a todo su equipo."
+                phrases = [
+                    "{card} inspired their team, boosting their strength.",
+                    "{card} empowered their allies with radiant energy.",
+                    "{card} radiated power and inspired the entire team."
                 ]
-                log.append(random.choice(frases).format(carta=carta["name"]))
+                log.append(random.choice(phrases).format(card=card["name"]))
                 continue
 
             # --- Roles ofensivos y defensivos ---
             if role == "tank":
-                dmg = max(1, carta['atk'] - int(objetivo['def'] * 0.5))
-                objetivo['hp'] -= dmg
-                frases = [
-                    "{carta} resistió el impacto y contratacó a {objetivo} (-{dmg}HP).",
-                    "{carta} absorbió daño y devolvió el golpe a {objetivo} (-{dmg}HP).",
-                    "{carta} protegió al equipo mientras castigaba a {objetivo} (-{dmg}HP)."
+                dmg = max(1, card['atk'] - int(target['def'] * 0.5))
+                target['hp'] -= dmg
+                phrases = [
+                    "{card} resisted the strike and counterattacked {target} (-{dmg}HP).",
+                    "{card} absorbed the damage and struck back at {target} (-{dmg}HP).",
+                    "{card} shielded the team while punishing {target} (-{dmg}HP)."
                 ]
-                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+                log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role == "deflector":
-                base = carta["atk"]
-                resist = objetivo["def"]
+                base = card["atk"]
+                resist = target["def"]
                 dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
                 dmg = max(1, dmg)
                 if random.random() < 0.2:
                     reflect = int(dmg * 0.5)
-                    carta['hp'] -= reflect
-                    frases = [
-                        "{carta} desvió parcialmente el ataque, recibiendo {reflect} de daño.",
-                        "{carta} canalizó el impacto de vuelta pero sufrió {reflect} de daño.",
-                        "{carta} reflejó parte del golpe, pero no salió ileso ({reflect}HP)."
+                    card['hp'] -= reflect
+                    phrases = [
+                        "{card} partially deflected the attack, taking {reflect} damage.",
+                        "{card} channeled the impact back but took {reflect} damage.",
+                        "{card} reflected part of the blow, but was not unscathed ({reflect}HP)."
                     ]
-                    log.append(random.choice(frases).format(carta=carta["name"], reflect=reflect))
+                    log.append(random.choice(phrases).format(card=card["name"], reflect=reflect))
                 else:
-                    objetivo['hp'] -= dmg
-                    frases = [
-                        "{carta} contraatacó con precisión a {objetivo} (-{dmg}HP).",
-                        "{carta} giró hábilmente y castigó a {objetivo} (-{dmg}HP).",
-                        "{carta} aprovechó un descuido de {objetivo} (-{dmg}HP)."
+                    target['hp'] -= dmg
+                    phrases = [
+                        "{card} countered with precision, striking {target} (-{dmg}HP).",
+                        "{card} spun gracefully and struck {target} (-{dmg}HP).",
+                        "{card} took advantage of {target}'s lapse, striking for (-{dmg}HP)."
                     ]
-                    log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role == "slayer":
-                base = carta["atk"]
-                resist = objetivo["def"]
+                base = card["atk"]
+                resist = target["def"]
                 dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
                 dmg = max(1, dmg)
-                objetivo['hp'] -= dmg
-                frases = [
-                    "{carta} ejecutó un golpe implacable sobre {objetivo} (-{dmg}HP).",
-                    "{carta} se lanzó sin piedad contra {objetivo} (-{dmg}HP).",
-                    "{carta} asestó un ataque decisivo a {objetivo} (-{dmg}HP)."
+                target['hp'] -= dmg
+                phrases = [
+                    "{card} delivered an unyielding blow to {target} (-{dmg}HP).",
+                    "{card} ruthlessly charged against {target} (-{dmg}HP).",
+                    "{card} dealt a decisive blow to {target} (-{dmg}HP)."
                 ]
-                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+                log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role == "berserker":
-                base = carta["atk"]
-                resist = objetivo["def"]
+                base = card["atk"]
+                resist = target["def"]
                 dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
                 dmg = max(1, int(dmg * 1.2))
-                objetivo['hp'] -= dmg
-                frases = [
-                    "{carta} entró en frenesí y destrozó a {objetivo} (-{dmg}HP).",
-                    "{carta} rugió y lanzó un ataque devastador contra {objetivo} (-{dmg}HP).",
-                    "{carta} desató su furia total sobre {objetivo} (-{dmg}HP)."
+                target['hp'] -= dmg
+                phrases = [
+                    "{card} went into a frenzy and shattered {target} (-{dmg}HP).",
+                    "{card} roared and unleashed a devastating attack on against {target} (-{dmg}HP).",
+                    "{card} unleashed their full fury against {target} (-{dmg}HP)."
                 ]
-                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+                log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role == "duelist":
-                base = carta["atk"]
-                resist = objetivo["def"]
+                base = card["atk"]
+                resist = target["def"]
                 dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
                 dmg = max(1, dmg)
                 if random.random() < 0.3:
                     dmg *= 2
-                    frases = [
-                        "{carta} encontró el punto débil de {objetivo} y ejecutó un golpe crítico (-{dmg}HP)!",
-                        "{carta} aprovechó una abertura para un impacto letal contra {objetivo} (-{dmg}HP)!",
-                        "{carta} sorprendió a {objetivo} con un ataque maestro (-{dmg}HP)!"
+                    phrases = [
+                        "{card} found {target}'s weak spot and delivered a critical strike (-{dmg}HP)!",
+                        "{card} exploited an opening for a lethal blow to {target} (-{dmg}HP)!",
+                        "{card} caught {target} off guard with a masterful strike (-{dmg}HP)!"
                     ]
                 else:
-                    frases = [
-                        "{carta} se midió con {objetivo} y lanzó un ataque preciso (-{dmg}HP).",
-                        "{carta} se lanzó a un duelo rápido contra {objetivo} (-{dmg}HP).",
-                        "{carta} atacó a {objetivo} con estilo y técnica (-{dmg}HP)."
+                    phrases = [
+                        "{card} faced off with {target} and delivered a precise strike (-{dmg}HP).",
+                        "{card} engaged in a quick duel with {target} (-{dmg}HP).",
+                        "{card} struck {target} with style and technique (-{dmg}HP)."
                     ]
-                objetivo['hp'] -= dmg
-                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+                target['hp'] -= dmg
+                log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role == "avenger":
-                muertos = sum(1 for a in aliados if a['hp'] <= 0)
-                base = carta["atk"] + muertos * 2
-                resist = objetivo["def"]
+                deads = sum(1 for a in allies if a['hp'] <= 0)
+                base = card["atk"] + deads * 2
+                resist = target["def"]
                 dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
                 dmg = max(1, dmg)
-                objetivo['hp'] -= dmg
-                frases = [
-                    "{carta} desató su ira acumulada sobre {objetivo} (-{dmg}HP).",
-                    "{carta} vengó a sus aliados golpeando a {objetivo} (-{dmg}HP).",
-                    "{carta} atacó en nombre de los caídos contra {objetivo} (-{dmg}HP)."
+                target['hp'] -= dmg
+                phrases = [
+                    "{card} unleashed their pent-up rage upon {target} (-{dmg}HP).",
+                    "{card} avenged their allies by striking {target} (-{dmg}HP).",
+                    "{card} struck {target} in the name of the fallen (-{dmg}HP)."
                 ]
-                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+                log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role == "foresser":
-                if random.random() < 0.3 + carta['int'] * 0.02:
-                    frases = [
-                        "{carta} predijo el ataque y lo esquivó elegantemente.",
-                        "{carta} vio el futuro y evitó el peligro a tiempo.",
-                        "{carta} anticipó el movimiento de {objetivo} y salió ileso."
+                if random.random() < 0.3 + card['int'] * 0.02:
+                    phrases = [
+                        "{card} foresaw the attack and dodged it gracefully.",
+                        "{card} glimpsed the future and avoided danger in time.",
+                        "{card} anticipated {target}'s move and emerged unscathed."
                     ]
-                    log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"]))
+                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"]))
                     continue
-                base = carta["atk"]
-                resist = objetivo["def"]
+                base = card["atk"]
+                resist = target["def"]
                 dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
                 dmg = max(1, dmg)
-                objetivo['hp'] -= dmg
+                target['hp'] -= dmg
                 frases = [
-                    "{carta} atacó con sabiduría a {objetivo} (-{dmg}HP).",
-                    "{carta} aprovechó una visión para golpear a {objetivo} (-{dmg}HP).",
-                    "{carta} golpeó tras prever el punto débil de {objetivo} (-{dmg}HP)."
+                    "{card} struck {target} with wisdom (-{dmg}HP).",
+                    "{card} used a vision to strike {target} (-{dmg}HP).",
+                    "{card} foresaw {target}'s weak spot and struck (-{dmg}HP)."
                 ]
-                log.append(random.choice(frases).format(carta=carta["name"], objetivo=objetivo["name"], dmg=dmg))
+                log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
-        ronda += 1
+        round += 1
 
-async def buscar_combate():
+async def seek_battle():
     while len(pvp_queue) >= 2:
-        jugador1 = pvp_queue.pop(0)
-        jugador2 = pvp_queue.pop(0)
+        player1 = pvp_queue.pop(0)
+        player2 = pvp_queue.pop(0)
 
-        uid1 = jugador1["user_id"]
-        uid2 = jugador2["user_id"]
-        interaction1 = jugador1["interaction"]
-        interaction2 = jugador2["interaction"]
+        uid1 = player1["user_id"]
+        uid2 = player2["user_id"]
+        interaction1 = player1["interaction"]
+        interaction2 = player2["interaction"]
 
         rival1 = await bot.fetch_user(int(uid1))
         rival2 = await bot.fetch_user(int(uid2))
@@ -1366,72 +1360,72 @@ async def buscar_combate():
             return
 
         # Avisar a ambos que tienen rival
-        await interaction1.followup.send(f"⚔️ ¡Te enfrentas a {rival2.display_name}!", ephemeral=False)
-        await interaction2.followup.send(f"⚔️ ¡Te enfrentas a {rival1.display_name}!", ephemeral=False)
+        await interaction1.followup.send(f"⚔️ You face off against {rival2.display_name}!", ephemeral=False)
+        await interaction2.followup.send(f"⚔️ You face off against {rival1.display_name}!", ephemeral=False)
 
         # Iniciar combate paralelo
-        asyncio.create_task(combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2))
+        asyncio.create_task(pvp_battle(interaction1, interaction2, team1, team2, rival1, rival2))
 
-async def combate_pvp(interaction1, interaction2, team1, team2, rival1, rival2):
+async def pvp_battle(interaction1, interaction2, team1, team2, rival1, rival2):
     try:
-        ganador, log = simular_combate(team1, team2)
+        winner, log = simulate_battle(team1, team2)
     except Exception as e:
-        await interaction1.followup.send(f"❗ Error interno: {str(e)}")
-        await interaction2.followup.send(f"❗ Error interno: {str(e)}")
+        await interaction1.followup.send(f"❗ Internal error: {str(e)}")
+        await interaction2.followup.send(f"❗ Internal error: {str(e)}")
         return
 
-    await narrar_combate_dual(interaction1, interaction2, log, ganador, rival1, rival2)
+    await narrate_dual_battle(interaction1, interaction2, log, winner, rival1, rival2)
 
-async def narrar_combate_dual(interaction1, interaction2, log, ganador, jugador1, jugador2):
-    titulo = f"⚔️ {jugador1.display_name} vs {jugador2.display_name}\n\n"
-    contenido = titulo + "🏁 ¡El combate ha comenzado!"
+async def narrate_dual_battle(interaction1, interaction2, log, winner, player1, player2):
+    title = f"⚔️ {player1.display_name} vs {player2.display_name}\n\n"
+    content = title + "🏁 The battle has begun!"
     
-    msg1 = await interaction1.followup.send(content=contenido)
-    msg2 = await interaction2.followup.send(content=contenido)
+    msg1 = await interaction1.followup.send(content=content)
+    msg2 = await interaction2.followup.send(content=content)
 
-    for evento in log:
+    for event in log:
         await asyncio.sleep(3)  # Aquí puedes ajustar el tiempo de narración
-        nuevo_contenido = titulo + evento
-        await msg1.edit(content=nuevo_contenido)
-        await msg2.edit(content=nuevo_contenido)
+        new_content = title + event
+        await msg1.edit(content=new_content)
+        await msg2.edit(content=new_content)
 
     await asyncio.sleep(2)
 
-    if ganador == "empate":
-        resultado = "🤝 ¡El combate terminó en empate!"
-    elif ganador == "Equipo 1":
-        resultado = f"🏆 ¡{jugador1.display_name} ha ganado el duelo!"
+    if winner == "draw":
+        result = "🤝 The battle ended in a draw!"
+    elif winner == "Team 1":
+        result = f"🏆 {player1.display_name} has won the battle!"
     else:
-        resultado = f"🏆 ¡{jugador2.display_name} ha ganado el duelo!"
+        result = f"🏆 {player2.display_name} has won the battle!"
 
-    await msg1.edit(content=titulo + resultado)
-    await msg2.edit(content=titulo + resultado)
+    await msg1.edit(content=title + result)
+    await msg2.edit(content=title + result)
 
-async def narrar_combate_simple(interaction, log, ganador, jugador1, jugador2):
-    titulo = f"⚔️ {jugador1} vs {jugador2}\n\n"
-    contenido = titulo + "🏁 ¡El combate ha comenzado!"
+async def narrate_simple_battle(interaction, log, winner, player1, player2):
+    title = f"⚔️ {player1} vs {player2}\n\n"
+    content = title + "🏁 The battle has begun!"
     
-    msg = await interaction.followup.send(content=contenido)
+    msg = await interaction.followup.send(content=content)
 
-    for evento in log:
+    for event in log:
         await asyncio.sleep(3)
-        nuevo_contenido = titulo + evento
-        await msg.edit(content=nuevo_contenido)
+        new_content = title + event
+        await msg.edit(content=new_content)
 
     await asyncio.sleep(2)
 
-    if ganador == "empate":
-        resultado = "🤝 ¡El combate terminó en empate!"
-    elif ganador == "Equipo 1":
-        resultado = f"🏆 ¡{jugador1} ha ganado el duelo!"
+    if winner == "draw":
+        result = "🤝 The battle ended in a draw!"
+    elif winner == "Team 1":
+        result = f"🏆 ¡{player1} has won the duel!"
     else:
-        resultado = f"🏆 ¡{jugador2} ha ganado el duelo!"
+        result = f"🏆 ¡{player2} has won the duel!"
 
-    await msg.edit(content=titulo + resultado)
+    await msg.edit(content=title + result)
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
-    print(f"[DEBUG] Obteniendo equipo de {uid}")
+    print(f"[DEBUG] Getting team of {uid}")
 
     frm = user_formations.find_one({"discordID": uid})
     tdoc = user_teams.find_one({"discordID": uid})
@@ -1440,14 +1434,14 @@ def get_user_team(uid: str):
     print(f"[DEBUG] TEAM DOC: {tdoc}")
 
     if not frm or not tdoc:
-        return None, "❌ No tienes un equipo formado aún."
+        return None, "❌ You don't have a team formed yet."
 
     raw = tdoc.get("team")
     if not raw:
-        return None, "❌ No tienes cartas en tu equipo."
+        return None, "❌ You have no cards in your team."
 
     if any(cid is None or cid == "" for cid in raw):
-        return None, "❗ No puedes jugar: tienes un slot vacío en tu equipo."
+        return None, "❗ You can't play: there's an empty slot in your team."
 
     team = []
 
@@ -1460,20 +1454,20 @@ def get_user_team(uid: str):
         print(f"[DEBUG] CID: {cid_val}")
 
         inst = user_cards.find_one({"discordID": uid, "cards.card_id": cid_val}, {"cards.$": 1})
-        print(f"[DEBUG] INSTANCIA EN user_cards: {inst}")
+        print(f"[DEBUG] INSTANCE IN user_cards: {inst}")
 
         if not inst or not inst.get("cards"):
-            print(f"[DEBUG] ❌ No se encontró la carta con ID {cid_val}")
+            print(f"[DEBUG] ❌ No card found with that ID {cid_val}")
             continue
 
         core_id = inst["cards"][0].get("core_id")
-        print(f"[DEBUG] core_id encontrado: {core_id}")
+        print(f"[DEBUG] core_id found: {core_id}")
 
         core = core_cards.find_one({"id": core_id})
-        print(f"[DEBUG] Carta base encontrada: {core}")
+        print(f"[DEBUG] Base card found: {core}")
 
         if not core:
-            print(f"[DEBUG] ❌ No se encontró carta base con ID {core_id}")
+            print(f"[DEBUG] ❌ No base card found with that ID {core_id}")
             continue
 
         team.append({
@@ -1487,14 +1481,14 @@ def get_user_team(uid: str):
             "max_hp": core["stats"]["hp"],
         })
 
-    print(f"[DEBUG] EQUIPO FINAL CONSTRUIDO: {team}")
+    print(f"[DEBUG] FINAL TEAM ASSEMBLED: {team}")
 
     if not team:
-        return None, "⚠️ No pude construir tu equipo."
+        return None, "⚠️ Failed to assemble your team.."
 
     return team, None
 
-@bot.tree.command(name="pvp", description="Entra en la cola PvP para luchar automáticamente.")
+@bot.tree.command(name="pvp", description="Battle against other players.")
 async def pvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
 
@@ -1505,23 +1499,23 @@ async def pvp(interaction: discord.Interaction):
 
     # Verificar si ya estás en cola
     if any(entry["user_id"] == uid for entry in pvp_queue):
-        return await interaction.response.send_message("⏳ Ya estás esperando en la cola PvP...", ephemeral=True)
+        return await interaction.response.send_message("⏳ You're already waiting in the queue...", ephemeral=True)
 
     # Agregar a la cola
     pvp_queue.append({"user_id": uid, "interaction": interaction})
 
-    await interaction.response.send_message("🔵 Te uniste a la cola PvP. Esperando rival...", ephemeral=True)
+    await interaction.response.send_message("🔵 You've joined the queue. Waiting for an opponent...", ephemeral=True)
 
     # Lanzar búsqueda automática
-    asyncio.create_task(buscar_combate())
+    asyncio.create_task(seek_battle())
 
-@bot.tree.command(name="duel", description="Desafía a otro jugador en combate PvP usando vuestro equipo configurado.")
-@app_commands.describe(jugador="Usuario al que quieres retar")
-async def duel(interaction: discord.Interaction, jugador: discord.User):
+@bot.tree.command(name="duel", description="Challenge your friends.")
+@app_commands.describe(player="User you want to challenge.")
+async def duel(interaction: discord.Interaction, player: discord.User):
     await interaction.response.defer()
 
     uid1 = str(interaction.user.id)
-    uid2 = str(jugador.id)
+    uid2 = str(player.id)
 
     try:
         team1, error1 = get_user_team(uid1)
@@ -1530,18 +1524,18 @@ async def duel(interaction: discord.Interaction, jugador: discord.User):
         if error1 or error2:
             return await interaction.followup.send(error1 or error2)
 
-        ganador, log = simular_combate(team1, team2)
+        winner, log = simulate_battle(team1, team2)
 
-        await narrar_combate_simple(
+        await narrate_simple_battle(
             interaction,
             log,
-            ganador,
-            jugador1=interaction.user.display_name,
-            jugador2=jugador.display_name
+            winner,
+            player1=interaction.user.display_name,
+            player2=player.display_name
         )
 
     except Exception as e:
-        return await interaction.followup.send(f"❗ Error interno durante el duelo: {str(e)}")
+        return await interaction.followup.send(f"❗ Internal error during the duel: {str(e)}")
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
