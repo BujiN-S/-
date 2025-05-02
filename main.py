@@ -832,7 +832,9 @@ async def open(interaction: Interaction):
 @app_commands.describe(card_id="Card ID")
 async def sell(interaction: Interaction, card_id: str):
     try:
+        # ⚠️ Muy importante: defer para evitar 3s timeout
         await interaction.response.defer(ephemeral=True)
+
         uid = str(interaction.user.id)
 
         doc = user_cards.find_one({"discordID": uid})
@@ -842,7 +844,7 @@ async def sell(interaction: Interaction, card_id: str):
         print("[DEBUG] Received card_id:", card_id)
         print("[DEBUG] User cards list:", doc["cards"])
 
-        # Always compare as strings
+        # Asegurarse de comparar como string
         card = next((c for c in doc["cards"] if str(c.get("card_id")) == str(card_id)), None)
         if not card:
             return await interaction.followup.send("❌ You don't own a card with that ID.", ephemeral=True)
@@ -851,16 +853,15 @@ async def sell(interaction: Interaction, card_id: str):
         if not core:
             return await interaction.followup.send("❌ Could not find base data for that card.", ephemeral=True)
 
-        # Calculate value (adjust if needed)
         value = int(core.get("value", 100))
 
-        # Remove the card
+        # Eliminar la carta del inventario
         user_cards.update_one(
             {"discordID": uid},
             {"$pull": {"cards": {"card_id": card["card_id"]}}}
         )
 
-        # Give coins
+        # Aumentar monedas del usuario
         users.update_one(
             {"discordID": uid},
             {"$inc": {"coins": value}}
@@ -872,7 +873,7 @@ async def sell(interaction: Interaction, card_id: str):
         )
 
     except Exception as e:
-        print("[ERROR in /sell]", str(e))
+        print("[ERROR in /sell]:", str(e))
         return await interaction.followup.send(f"❌ Internal error: `{str(e)}`", ephemeral=True)
 
 @bot.tree.command(name="formation", description="Choose your battle formation.")
