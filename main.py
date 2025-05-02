@@ -886,9 +886,9 @@ async def sell(interaction: Interaction, id: str):
     await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="formation", description="Choose your battle formation.")
-@app_commands.describe(opcion="Choose your formation.")
+@app_commands.describe(option="Choose your formation.")
 @app_commands.choices(
-    opcion=[
+    option=[
         app_commands.Choice(name="🛡️ Defensive — 2 frontlines, 1 midline, 1 backline", value="defensive"),
         app_commands.Choice(name="🔥 Offensive — 1 frontline, 2 midlines, 1 backline", value="offensive"),
         app_commands.Choice(name="🔄 Versatile — 1 forntline, 1 midline, 2 backlines", value="versatile"),
