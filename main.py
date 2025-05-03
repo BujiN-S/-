@@ -837,38 +837,63 @@ async def open(interaction: Interaction):
     await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name="sell", description="Sell a card from your collection.")
-@app_commands.describe(core_id="ID of the card you want to sell")
-async def sell(interaction: discord.Interaction, core_id: str):
-    await interaction.response.defer()
-
+@app_commands.describe(card_id="The ID of the card you want to sell")
+async def sell(interaction: discord.Interaction, card_id: int):
+    uid = str(interaction.user.id)
     try:
-        user_id = str(interaction.user.id)
+        # 1. Validar que el usuario tenga cartas
+        user_data = user_cards.find_one({"discordID": uid})
+        if not user_data or not user_data.get("cards"):
+            return await interaction.response.send_message("❌ You have no cards to sell.", ephemeral=True)
 
-        card = await user_cards.find_one({"owner": user_id, "core_id": core_id})
+        # 2. Buscar la carta
+        card = next((c for c in user_data["cards"] if c["card_id"] == card_id), None)
         if not card:
-            return await interaction.followup.send("❌ No tienes esa carta.", ephemeral=True)
+            return await interaction.response.send_message("❌ No card with that ID was found in your collection.", ephemeral=True)
 
-        core = await core_cards.find_one({"_id": card["core_id"]})
-        if not core:
-            return await interaction.followup.send("❌ No se encontró la carta en la base de datos.", ephemeral=True)
+        # 3. Verificar si la carta está en el equipo (lista de IDs)
+        team_data = user_teams.find_one({"discordID": uid})
+        if team_data and isinstance(team_data.get("team"), list):
+            if any(int(cid) == card_id for cid in team_data["team"]):
+                return await interaction.response.send_message(
+                    "❌ This card is part of your team and cannot be sold.", ephemeral=True
+                )
 
-        rank = core.get("rank", "E")
-        value = RANK_VALUE.get(rank, 100)
+        # 4. Valor de venta
+        rank = card.get("rank", "E")
+        sell_value = RANK_VALUE.get(rank, 0)
 
-        await user_cards.delete_one({"_id": card["_id"]})
-        await users.update_one({"_id": user_id}, {"$inc": {"coins": value}})
-
-        embed = discord.Embed(
-            title="🪙 ¡Carta vendida!",
-            description=f"Vendiste **{core['name']}** por **{value} monedas**.",
-            color=discord.Color.gold()
+        # 5. Eliminar la carta
+        user_cards.update_one(
+            {"discordID": uid},
+            {"$pull": {"cards": {"card_id": card_id}}}
         )
-        await interaction.followup.send(embed=embed)
+
+        # 6. Sumar monedas
+        users.update_one(
+            {"discordID": uid},
+            {"$inc": {"coins": sell_value}}
+        )
+
+        # 7. Confirmación
+        embed = discord.Embed(
+            title="🪙 Card Sold",
+            description=(
+                f"You successfully sold **{card['name']}** [`{rank}`]\n"
+                f"You earned **{sell_value} coins**."
+            ),
+            color=discord.Color.green()
+        )
+        embed.set_footer(text="Thank you for your contribution to the market!")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     except Exception as e:
-        import traceback
-        print(traceback.format_exc())
-        await interaction.followup.send("❌ Error interno del servidor.", ephemeral=True)
+        # Agrega logging si quieres
+        logging.error(f"[ERROR] /sell failed: {e}\n{traceback.format_exc()}")
+        await interaction.response.send_message(
+            "❌ An internal error occurred while trying to sell your card. Please try again later.",
+            ephemeral=True
+        )
         
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
