@@ -831,34 +831,51 @@ async def open(interaction: Interaction):
 @bot.tree.command(name="sell", description="Sell a card from your collection.")
 @app_commands.describe(core_id="ID of the card you want to sell")
 async def sell(interaction: discord.Interaction, core_id: str):
-    await interaction.response.defer()
+    try:
+        user_id = str(interaction.user.id)
 
-    user_id = str(interaction.user.id)
+        # 1) Look up the card in the user’s collection
+        card = await user_cards.find_one({"owner": user_id, "core_id": core_id})
+        if not card:
+            return await interaction.response.send_message(
+                "❌ You don’t own a card with that ID.", ephemeral=True
+            )
 
-    card = await user_cards.find_one({"owner": user_id, "core_id": core_id})
-    if not card:
-        await interaction.followup.send("You don't own a card with that ID.", ephemeral=True)
-        return
+        # 2) Fetch the core card data
+        core = await core_cards.find_one({"_id": card["core_id"]})
+        if not core:
+            return await interaction.response.send_message(
+                "❌ Card data could not be found.", ephemeral=True
+            )
 
-    core = await core_cards.find_one({"_id": card["core_id"]})
-    if not core:
-        await interaction.followup.send("The card data could not be found.", ephemeral=True)
-        return
+        # 3) Determine sale value based on rank
+        rank = core.get("rank", "E")
+        value = RANK_VALUE.get(rank, RANK_VALUE["E"])
 
-    # Rank selection con manejo seguro
-    rank = core.get("rank") or card.get("rank") or "E"
-    value = RANK_VALUE.get(rank, RANK_VALUE["E"])
+        # 4) Delete the card record and add coins to the user
+        await user_cards.delete_one({"_id": card["_id"]})
+        result = await users.update_one({"_id": user_id}, {"$inc": {"coins": value}})
+        if result.modified_count == 0:
+            return await interaction.response.send_message(
+                "⚠️ Failed to update your coin balance. Please try again.", ephemeral=True
+            )
 
-    await user_cards.delete_one({"_id": card["_id"]})
-    await users.update_one({"_id": user_id}, {"$inc": {"coins": value}})
+        # 5) Send confirmation embed
+        embed = discord.Embed(
+            title="🪙 Card Sold!",
+            description=f"You sold **{core['name']}** for **{value} coins**.",
+            color=discord.Color.gold()
+        )
+        await interaction.response.send_message(embed=embed)
 
-    embed = discord.Embed(
-        title="🪙 Card Sold!",
-        description=f"You sold **{core['name']}** for **{value} coins**.",
-        color=discord.Color.gold()
-    )
-    await interaction.followup.send(embed=embed)
-    
+    except Exception as e:
+        # Log the exception for debugging
+        print(f"[sell] EXCEPTION: {e}", flush=True)
+        # Ensure the user always gets a reply
+        await interaction.response.send_message(
+            "⚠️ An internal error occurred. Please contact the administrator.", ephemeral=True
+        )
+
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
 @app_commands.choices(
