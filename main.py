@@ -845,17 +845,12 @@ async def sell(interaction: discord.Interaction, core_id: str):
         await interaction.followup.send("The card data could not be found.", ephemeral=True)
         return
 
-    # Rank logic with fallback
-    rank = core.get("rank") or card.get("rank", "E")
-    if rank not in RANK_VALUE:
-        rank = "E"
-    value = RANK_VALUE[rank]
+    # Rank selection con manejo seguro
+    rank = core.get("rank") or card.get("rank") or "E"
+    value = RANK_VALUE.get(rank, RANK_VALUE["E"])
 
     await user_cards.delete_one({"_id": card["_id"]})
-    await users.update_one(
-        {"_id": user_id},
-        {"$inc": {"wallet": value}}
-    )
+    await users.update_one({"_id": user_id}, {"$inc": {"wallet": value}})
 
     embed = discord.Embed(
         title="🪙 Card Sold!",
@@ -863,7 +858,6 @@ async def sell(interaction: discord.Interaction, core_id: str):
         color=discord.Color.gold()
     )
     await interaction.followup.send(embed=embed)
-
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
 @app_commands.choices(
