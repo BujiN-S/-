@@ -850,7 +850,7 @@ async def sell(interaction: discord.Interaction, core_id: str):
     value = RANK_VALUE.get(rank, RANK_VALUE["E"])
 
     await user_cards.delete_one({"_id": card["_id"]})
-    await users.update_one({"_id": user_id}, {"$inc": {"wallet": value}})
+    await users.update_one({"_id": user_id}, {"$inc": {"coins": value}})
 
     embed = discord.Embed(
         title="🪙 Card Sold!",
@@ -858,6 +858,7 @@ async def sell(interaction: discord.Interaction, core_id: str):
         color=discord.Color.gold()
     )
     await interaction.followup.send(embed=embed)
+    
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
 @app_commands.choices(
