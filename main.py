@@ -839,44 +839,36 @@ async def open(interaction: Interaction):
 @bot.tree.command(name="sell", description="Sell a card from your collection.")
 @app_commands.describe(core_id="ID of the card you want to sell")
 async def sell(interaction: discord.Interaction, core_id: str):
+    await interaction.response.defer()
+
     try:
         user_id = str(interaction.user.id)
 
         card = await user_cards.find_one({"owner": user_id, "core_id": core_id})
         if not card:
-            return await interaction.response.send_message(
-                "❌ You don’t own a card with that ID.", ephemeral=True
-            )
+            return await interaction.followup.send("❌ No tienes esa carta.", ephemeral=True)
 
         core = await core_cards.find_one({"_id": card["core_id"]})
         if not core:
-            return await interaction.response.send_message(
-                "❌ Card data could not be found.", ephemeral=True
-            )
+            return await interaction.followup.send("❌ No se encontró la carta en la base de datos.", ephemeral=True)
 
         rank = core.get("rank", "E")
-        value = RANK_VALUE.get(rank, RANK_VALUE["E"])
+        value = RANK_VALUE.get(rank, 100)
 
         await user_cards.delete_one({"_id": card["_id"]})
-        result = await users.update_one({"_id": user_id}, {"$inc": {"coins": value}})
-        if result.modified_count == 0:
-            return await interaction.response.send_message(
-                "⚠️ Failed to update your coin balance. Please try again.", ephemeral=True
-            )
+        await users.update_one({"_id": user_id}, {"$inc": {"coins": value}})
 
         embed = discord.Embed(
-            title="🪙 Card Sold!",
-            description=f"You sold **{core['name']}** for **{value} coins**.",
+            title="🪙 ¡Carta vendida!",
+            description=f"Vendiste **{core['name']}** por **{value} monedas**.",
             color=discord.Color.gold()
         )
-        await interaction.response.send_message(embed=embed)
+        await interaction.followup.send(embed=embed)
 
-    except Exception:
-        tb = traceback.format_exc()
-        logger.error(f"Exception in /sell:\n{tb}")
-        await interaction.response.send_message(
-            "⚠️ An internal error occurred. Please contact the administrator.", ephemeral=True
-        )
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        await interaction.followup.send("❌ Error interno del servidor.", ephemeral=True)
         
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
