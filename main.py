@@ -828,45 +828,41 @@ async def open(interaction: Interaction):
     view = OpenPackView(uid, doc["packs"])
     await interaction.response.send_message(embed=embed, view=view)
 
-@bot.tree.command(name="sell", description="Sell a card from your collection for coins.")
-@app_commands.describe(card_id="Card ID")
-async def sell(interaction: Interaction, card_id: str):
-    await interaction.response.defer(ephemeral=True)
-    try:
-        uid = str(interaction.user.id)
+@bot.tree.command(name="sell", description="Sell a card from your collection.")
+@app_commands.describe(core_id="ID of the card you want to sell")
+async def sell(interaction: discord.Interaction, core_id: str):
+    await interaction.response.defer()
 
-        doc = user_cards.find_one({"discordID": uid})
-        if not doc or not doc.get("cards"):
-            return await interaction.followup.send("❌ You have no cards to sell.", ephemeral=True)
+    user_id = str(interaction.user.id)
 
-        card = next((c for c in doc["cards"] if str(c.get("card_id")) == str(card_id)), None)
-        if not card:
-            return await interaction.followup.send("❌ You don't own a card with that ID.", ephemeral=True)
+    card = await user_cards.find_one({"owner": user_id, "core_id": core_id})
+    if not card:
+        await interaction.followup.send("You don't own a card with that ID.", ephemeral=True)
+        return
 
-        core = core_cards.find_one({"id": card["core_id"]})
-        if not core:
-            return await interaction.followup.send("❌ Could not find base data for that card.", ephemeral=True)
+    core = await core_cards.find_one({"_id": card["core_id"]})
+    if not core:
+        await interaction.followup.send("The card data could not be found.", ephemeral=True)
+        return
 
-        rank = core.get("rank", "E")  # Asegúrate de que 'rank' esté en core
-        value = RANK_VALUE.get(rank, 100)
+    # Rank logic with fallback
+    rank = core.get("rank") or card.get("rank", "E")
+    if rank not in RANK_VALUE:
+        rank = "E"
+    value = RANK_VALUE[rank]
 
-        user_cards.update_one(
-            {"discordID": uid},
-            {"$pull": {"cards": {"card_id": card["card_id"]}}}
-        )
-        users.update_one(
-            {"discordID": uid},
-            {"$inc": {"coins": value}}
-        )
+    await user_cards.delete_one({"_id": card["_id"]})
+    await users.update_one(
+        {"_id": user_id},
+        {"$inc": {"wallet": value}}
+    )
 
-        await interaction.followup.send(
-            f"✅ You sold **{core['name']}** for 💰 `{value}` coins.",
-            ephemeral=True
-        )
-
-    except Exception as e:
-        print("[ERROR in /sell]:", str(e))
-        await interaction.followup.send(f"❌ Internal error: `{str(e)}`", ephemeral=True)
+    embed = discord.Embed(
+        title="🪙 Card Sold!",
+        description=f"You sold **{core['name']}** for **{value} coins**.",
+        color=discord.Color.gold()
+    )
+    await interaction.followup.send(embed=embed)
 
 @bot.tree.command(name="formation", description="Choose your battle formation.")
 @app_commands.describe(option="Choose your formation.")
