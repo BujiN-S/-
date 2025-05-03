@@ -837,8 +837,8 @@ async def open(interaction: Interaction):
     await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name="sell", description="Sell a card from your collection.")
-@app_commands.describe(card_id="The ID of the card you want to sell")
-async def sell(interaction: discord.Interaction, card_id: int):
+@app_commands.describe(id="The ID of the card you want to sell")
+async def sell(interaction: discord.Interaction, id: str):
     uid = str(interaction.user.id)
     try:
         # 1. Validar que el usuario tenga cartas
@@ -847,7 +847,7 @@ async def sell(interaction: discord.Interaction, card_id: int):
             return await interaction.response.send_message("❌ You have no cards to sell.", ephemeral=True)
 
         # 2. Buscar la carta
-        card = next((c for c in user_data["cards"] if c["card_id"] == card_id), None)
+        card = next((c for c in user_data["cards"] if c["card_id"] == id), None)
         if not card:
             return await interaction.response.send_message("❌ No card with that ID was found in your collection.", ephemeral=True)
 
@@ -855,7 +855,7 @@ async def sell(interaction: discord.Interaction, card_id: int):
         # Comprobar si la carta está en el equipo
         team_data = user_teams.find_one({"discordID": uid})
         if team_data and "team" in team_data:
-            if str(card_id) in team_data["team"]:
+            if str(id) in team_data["team"]:
                 return await interaction.response.send_message(
                     "❌ This card is part of your team and cannot be sold.", ephemeral=True
                 )
@@ -868,7 +868,7 @@ async def sell(interaction: discord.Interaction, card_id: int):
         # 5. Eliminar la carta
         user_cards.update_one(
             {"discordID": uid},
-            {"$pull": {"cards": {"card_id": card_id}}}
+            {"$pull": {"cards": {"card_id": id}}}
         )
 
         # 6. Sumar monedas
