@@ -1143,7 +1143,7 @@ async def remove(interaction: discord.Interaction, slot: int):
 
 def simulate_battle(e1, e2):
     log = []
-    ronda = 1
+    current_round = 1
     cards1 = [copy.deepcopy(c) for c in e1]
     cards2 = [copy.deepcopy(c) for c in e2]
 
@@ -1154,7 +1154,7 @@ def simulate_battle(e1, e2):
     ]
 
     while True:
-        log.append(random.choice(round_phrases) + f" (Round {round})")
+        log.append(random.choice(round_phrases) + f" (current_round {current_round})")
 
         pool = [(c, 1) for c in cards1 if c['hp'] > 0] + [(c, 2) for c in cards2 if c['hp'] > 0]
         pool.sort(key=lambda x: x[0]['vel'] + random.randint(0, 3), reverse=True)
@@ -1186,7 +1186,16 @@ def simulate_battle(e1, e2):
                         "{card} cast a healing spell on {a}, restoring +{amt}HP.",
                         "{card}  tended to {a}'s wounds, healing +{amt}HP."
                     ]
-                    log.append(random.choice(frases).format(card=card["name"], a=a["name"], amt=amt))
+                    log.append(random.choice(phrases).format(card=card["name"], a=a["name"], amt=amt))
+                else:
+                    dmg = max(1, card['atk'] - int(target['def'] * 0.5))
+                    target['hp'] -= dmg
+                    phrases = [
+                        "{card} had no one to heal, so attacked {target} instead (-{dmg}HP).",
+                        "{card} swung their staff at {target} (-{dmg}HP).",
+                        "{card} resorted to combat and hit {target} (-{dmg}HP)."
+                    ]
+                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role == "radiant healer":
@@ -1201,9 +1210,19 @@ def simulate_battle(e1, e2):
                         "{card} shone healing light upon {a}'s wounds, bringing recovery +{amt}HP."
                     ]
                     log.append(random.choice(phrases).format(card=card["name"], a=a["name"], amt=amt))
+                else:
+                    dmg = max(1, card['atk'] - int(target['def'] * 0.5))
+                    target['hp'] -= dmg
+                    phrases = [
+                        "{card} emitted a flash of light and struck {target} (-{dmg}HP).",
+                        "{card} lashed out with divine fury at {target} (-{dmg}HP).",
+                        "{card} found no one to heal and attacked {target} instead (-{dmg}HP)."
+                    ]
+                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             if role in ["aura", "aura sparkling", "noble aura"]:
+                buffed = False
                 for a in allies:
                     if a == card:
                         continue
@@ -1214,12 +1233,23 @@ def simulate_battle(e1, e2):
                     elif role == "noble aura":
                         a['atk'] += 2
                         a['def'] += 2
-                phrases = [
-                    "{card} inspired their team, boosting their strength.",
-                    "{card} empowered their allies with radiant energy.",
-                    "{card} radiated power and inspired the entire team."
-                ]
-                log.append(random.choice(phrases).format(card=card["name"]))
+                    buffed = True    
+                if buffed:    
+                    phrases = [
+                        "{card} inspired their team, boosting their strength.",
+                        "{card} empowered their allies with radiant energy.",
+                        "{card} radiated power and inspired the entire team."
+                    ]
+                    log.append(random.choice(phrases).format(card=card["name"]))
+                else:
+                    dmg = max(1, card['atk'] - int(target['def'] * 0.5))
+                    target['hp'] -= dmg
+                    phrases = [
+                        "{card} had no one to empower and attacked {target} instead (-{dmg}HP).",
+                        "{card} surged forward and struck {target} (-{dmg}HP).",
+                        "{card} unleashed their own power against {target} (-{dmg}HP)."
+                    ]
+                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
             # --- Roles ofensivos y defensivos ---
@@ -1337,7 +1367,7 @@ def simulate_battle(e1, e2):
                 dmg = int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1)
                 dmg = max(1, dmg)
                 target['hp'] -= dmg
-                frases = [
+                phrases = [
                     "{card} struck {target} with wisdom (-{dmg}HP).",
                     "{card} used a vision to strike {target} (-{dmg}HP).",
                     "{card} foresaw {target}'s weak spot and struck (-{dmg}HP)."
@@ -1345,7 +1375,7 @@ def simulate_battle(e1, e2):
                 log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
                 continue
 
-        round += 1
+        current_round += 1
 
 async def seek_battle():
     while len(pvp_queue) >= 2:
