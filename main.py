@@ -1154,7 +1154,7 @@ def simulate_battle(e1, e2):
     ]
 
     while True:
-        log.append(random.choice(round_phrases) + f" (current_round {current_round})")
+        log.append(f"⚔️ Round {current_round}: {random.choice(round_phrases)}")
 
         pool = [(c, 1) for c in cards1 if c['hp'] > 0] + [(c, 2) for c in cards2 if c['hp'] > 0]
         pool.sort(key=lambda x: x[0]['vel'] + random.randint(0, 3), reverse=True)
