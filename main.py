@@ -1446,24 +1446,27 @@ async def narrate_dual_battle(interaction1, interaction2, log, winner, player1, 
 async def narrate_simple_battle(interaction, log, winner, player1, player2):
     title = f"⚔️ {player1} vs {player2}\n\n"
     content = title + "🏁 The battle has begun!"
-    
-    msg = await interaction.followup.send(content=content)
 
-    for event in log:
-        await asyncio.sleep(3)
-        new_content = title + event
-        await msg.edit(content=new_content)
+    try:
+        msg = await interaction.followup.send(content=content)
 
-    await asyncio.sleep(2)
+        for event in log:
+            await asyncio.sleep(3)
+            await msg.edit(content=title + event)
 
-    if winner == "draw":
-        result = "🤝 The battle ended in a draw!"
-    elif winner == "Team 1":
-        result = f"🏆 ¡{player1} has won the duel!"
-    else:
-        result = f"🏆 ¡{player2} has won the duel!"
+        await asyncio.sleep(2)
 
-    await msg.edit(content=title + result)
+        if winner == "draw":
+            result = "🤝 The battle ended in a draw!"
+        elif winner == "Team 1":
+            result = f"🏆 {player1} has won the duel!"
+        else:
+            result = f"🏆 {player2} has won the duel!"
+
+        await msg.edit(content=title + result)
+
+    except Exception:
+        await interaction.followup.send("❗ An error occurred while narrating the battle.")
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
