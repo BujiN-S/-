@@ -847,7 +847,7 @@ async def sell(interaction: discord.Interaction, id: str):
             return await interaction.response.send_message("❌ You have no cards to sell.", ephemeral=True)
 
         # 2. Buscar la carta
-        card = next((c for c in user_data["cards"] if c["card_id"] == id), None)
+        card = next((c for c in user_data["cards"] if str(c["card_id"]) == str(id)), None)
         if not card:
             return await interaction.response.send_message("❌ No card with that ID was found in your collection.", ephemeral=True)
 
