@@ -852,12 +852,14 @@ async def sell(interaction: discord.Interaction, card_id: int):
             return await interaction.response.send_message("❌ No card with that ID was found in your collection.", ephemeral=True)
 
         # 3. Verificar si la carta está en el equipo (lista de IDs)
+        # Comprobar si la carta está en el equipo
         team_data = user_teams.find_one({"discordID": uid})
-        if team_data and isinstance(team_data.get("team"), list):
-            if any(int(cid) == card_id for cid in team_data["team"]):
+        if team_data and "team" in team_data:
+            if str(card_id) in team_data["team"]:
                 return await interaction.response.send_message(
                     "❌ This card is part of your team and cannot be sold.", ephemeral=True
                 )
+
 
         # 4. Valor de venta
         rank = card.get("rank", "E")
