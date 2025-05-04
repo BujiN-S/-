@@ -1557,26 +1557,17 @@ async def pvp(interaction: discord.Interaction):
 @bot.tree.command(name="duel", description="Challenge your friends.")
 @app_commands.describe(player="User you want to challenge.")
 async def duel(interaction: discord.Interaction, player: discord.User):
+    await interaction.response.defer()
+
+    uid1 = str(interaction.user.id)
+    uid2 = str(player.id)
+
     try:
-        # Responde a Discord para evitar que "piense" indefinidamente
-        await interaction.response.defer()
-
-        uid1 = str(interaction.user.id)
-        uid2 = str(player.id)
-
-        if uid1 == uid2:
-            return await interaction.followup.send("❌ You can't duel yourself!")
-
         team1, error1 = get_user_team(uid1)
         team2, error2 = get_user_team(uid2)
 
-        if error1:
-            return await interaction.followup.send(f"⚠️ {interaction.user.display_name}: {error1}")
-        if error2:
-            return await interaction.followup.send(f"⚠️ {player.display_name}: {error2}")
-
-        if not team1 or not team2:
-            return await interaction.followup.send("❌ One or both players have no team configured.")
+        if error1 or error2:
+            return await interaction.followup.send(error1 or error2)
 
         winner, log = simulate_battle(team1, team2)
 
@@ -1589,7 +1580,7 @@ async def duel(interaction: discord.Interaction, player: discord.User):
         )
 
     except Exception as e:
-        await interaction.followup.send(f"❗ Internal error during the duel: {str(e)}")
+        return await interaction.followup.send(f"❗ Internal error during the duel: {str(e)}")
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
