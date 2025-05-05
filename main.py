@@ -227,7 +227,7 @@ async def profile(interaction: discord.Interaction):
     embed.set_thumbnail(url=avatar_url)
     embed.add_field(name="🆔 User's ID", value=user_data.get("discordID", "Stranger"), inline=False)
     embed.add_field(name="💰 Coins", value=user_data.get("coins", 0), inline=True)
-    embed.add_field(name="🏠 Clan", value=user_data.get("clan", "None"), inline=True)
+    embed.add_field(name="🏠 Clan", value=user_data.get("clan", "none"), inline=True)
 
     await interaction.response.send_message(embed=embed)
 
@@ -268,12 +268,10 @@ async def reward(interaction: discord.Interaction):
         await interaction.response.send_message(
             content=f"{phrase}\n🎁 +{coins} coins",
             embed=embed,
-            ephemeral=True
         )
     else:
         await interaction.response.send_message(
-            f"⚠️ I couldn't find a card of rank '{rank}'. But you won +{coins} coins.",
-            ephemeral=True
+            f"⚠️ I couldn't find a card of rank '{rank}'. But you won +{coins} coins."
         )
 
     # Sólo si llegaste aquí sin excepciones, actualizo BD:
@@ -322,8 +320,7 @@ async def rewardcard(interaction: discord.Interaction):
 
             # c) Enviar
             await interaction.response.send_message(
-                embed=embed,
-                ephemeral=True
+                embed=embed
             )
         else:
             await interaction.response.send_message(
@@ -625,7 +622,7 @@ async def collection(interaction: discord.Interaction):
             await interaction.response.edit_message(embed=self.get_embed(), view=self)
 
     view = Paginator(cards)
-    await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+    await interaction.response.send_message(embed=view.get_embed(), view=view)
 
 @bot.tree.command(name="searchcard", description="Search for a card by name, class, role, or rank.")
 @app_commands.describe(name="Name (opcional)", class_="Class (opcional)", role="Role (opcional)", rank="Rank (opcional)")
@@ -652,10 +649,10 @@ async def searchcard(interaction: discord.Interaction, name: str = None, class_:
 
     if len(cards) == 1:
         embed = generate_card_embed(cards[0], con_footer=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed)
     else:
         view = CatalogView(cards, per_page=10)
-        await interaction.response.send_message(embed=view.get_embed(), view=view, ephemeral=True)
+        await interaction.response.send_message(embed=view.get_embed(), view=view)
 
 # —————————————————————————————
 # ShopView y ShopButton revisados
@@ -747,7 +744,7 @@ async def store(interaction: Interaction):
 
     # Muestro botones
     view = ShopView(packs)
-    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    await interaction.response.send_message(embed=embed, view=view)
 
 class OpenPackView(ui.View):
     def __init__(self, uid: str, packs: list[dict]):
@@ -887,7 +884,7 @@ async def sell(interaction: discord.Interaction, id: str):
             color=discord.Color.green()
         )
         embed.set_footer(text="Thank you for your contribution to the market!")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed)
 
     except Exception as e:
         # Agrega logging si quieres
@@ -932,8 +929,7 @@ async def formation(interaction: discord.Interaction, option: app_commands.Choic
     )
 
     await interaction.response.send_message(
-        f"✅ You chose the **{option.name.split('—')[0].strip()}** formation\n{formation['desc']}",
-        ephemeral=True
+        f"✅ You chose the **{option.name.split('—')[0].strip()}** formation\n{formation['desc']}"
     )
 
 @bot.tree.command(name="assign", description="Assign a card to a slot in your formation.")
@@ -979,8 +975,7 @@ async def assign(interaction: Interaction, slot: int, id: str):
     )
 
     await interaction.response.send_message(
-        f"✅ Card successfully assigned to the slot. {slot} ({slots[slot-1].capitalize()}).",
-        ephemeral=True
+        f"✅ Card successfully assigned to the slot. {slot} ({slots[slot-1].capitalize()})."
     )
 
 @bot.tree.command(name="team", description="Show your formation and assigned cards.")
@@ -1064,8 +1059,7 @@ async def swap(interaction: discord.Interaction, slot1: int, slot2: int):
     )
 
     await interaction.response.send_message(
-        f"✅ Cards in slot {slot1} and slot {slot2} have been swapped.",
-        ephemeral=True
+        f"✅ Cards in slot {slot1} and slot {slot2} have been swapped."
     )
 
 @bot.tree.command(name="clearteam", description="Remove all cards from your current team.")
@@ -1090,8 +1084,7 @@ async def clearteam(interaction: discord.Interaction):
     )
 
     await interaction.response.send_message(
-        "✅ Successfully removed all cards from your team.",
-        ephemeral=True
+        "✅ Successfully removed all cards from your team."
     )
 
 @bot.tree.command(name="remove", description="Remove a card from a specific slot in your team.")
@@ -1135,8 +1128,7 @@ async def remove(interaction: discord.Interaction, slot: int):
     )
 
     await interaction.response.send_message(
-        f"✅ Card '{removed_card}' removed from slot {slot} ({slots[slot-1].capitalize()}).",
-        ephemeral=True
+        f"✅ Card '{removed_card}' removed from slot {slot} ({slots[slot-1].capitalize()})."
     )
 
 # ---------- Simulación de Combate ----------
