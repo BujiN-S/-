@@ -1541,14 +1541,13 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         return await interaction.response.send_message(f"❗ Internal error: {e}", ephemeral=True)
 
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
-    content = title + "🏍️ The duel has begun!"
+    content = title + "🏁 The duel has begun!"
 
     await interaction.response.send_message(content, ephemeral=True)
-    msg = await interaction.original_response()
 
     for event in log:
         await asyncio.sleep(3)
-        await msg.edit(content=title + event)
+        await interaction.edit_original_response(content=title + event)
 
     await asyncio.sleep(2)
     if winner == "Team 1":
@@ -1558,7 +1557,7 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     else:
         result = "🤝 The duel ended in a draw!"
 
-    await msg.edit(content=title + result)
+    await interaction.edit_original_response(content=title + result)
 
 
 def run_bot():
