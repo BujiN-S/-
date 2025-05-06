@@ -1526,29 +1526,20 @@ async def pvp(interaction: discord.Interaction):
 async def duel(interaction: discord.Interaction, opponent: discord.User):
     uid1 = str(interaction.user.id)
     uid2 = str(opponent.id)
-
     team1, error1 = get_user_team(uid1)
     if error1:
         return await interaction.response.send_message(error1, ephemeral=True)
-
     team2, error2 = get_user_team(uid2)
     if error2:
         return await interaction.response.send_message(error2, ephemeral=True)
-
-    await interaction.response.defer(ephemeral=True)
-
-    try:
-        winner, log = simulate_battle(team1, team2)
-    except Exception as e:
-        return await interaction.followup.send(f"❗ Internal error: {e}", ephemeral=True)
-
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
-    await interaction.edit_original_response(content=title + "🏁 The duel has begun!")
-
+    await interaction.response.send_message(title + "🏁 The duel has begun!", ephemeral=True)
+    msg = await interaction.original_response()
+    loop = asyncio.get_running_loop()
+    winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
     for event in log:
         await asyncio.sleep(3)
-        await interaction.edit_original_response(content=title + event)
-
+        await msg.edit(content=title + event)
     await asyncio.sleep(2)
     if winner == "Team 1":
         result = f"🏆 {interaction.user.display_name} wins the duel!"
@@ -1556,9 +1547,7 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = f"🏆 {opponent.display_name} wins the duel!"
     else:
         result = "🤝 The duel ended in a draw!"
-
-    await asyncio.sleep(1)
-    await interaction.edit_original_response(content=title + result)
+    await msg.edit(content=title + result)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
