@@ -1557,8 +1557,8 @@ async def duel(
     interaction: discord.Interaction,
     opponent: discord.User
 ):
-    uid1 = interaction.user.id
-    uid2 = opponent.id
+    uid1 = str(interaction.user.id)
+    uid2 = str(opponent.id)
 
     # 0) Prevent self‑duel (single send_message + return)
     if uid1 == uid2:
