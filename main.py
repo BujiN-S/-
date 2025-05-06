@@ -1546,46 +1546,45 @@ async def pvp(interaction: discord.Interaction):
     # Lanzar búsqueda automática
     asyncio.create_task(seek_battle())
 
-@bot.tree.command(name="duel", description="Challenge your friends.")
-@app_commands.describe(player="User you want to challenge.")
-async def duel(interaction: discord.Interaction, player: discord.User):
-    uid1 = str(interaction.user.id)
-    uid2 = str(player.id)
+@bot.tree.command(name="duel", description="Start a duel against another player")
+async def duel(interaction: discord.Interaction, opponent: discord.User):
+    uid1 = interaction.user.id
+    uid2 = opponent.id
 
+    # 0) Prevent self‑duel
     if uid1 == uid2:
-        await interaction.response.send_message("❌ You can't duel yourself!", ephemeral=True)
+        await interaction.response.send_message(
+            "❌ You can't duel yourself!",
+            ephemeral=True
+        )
         return
 
-    # Envía una respuesta rápida primero para no dejar el bot pensando
-    await interaction.response.send_message("⚔️ Preparing the duel...", ephemeral=True)
+    # 1) Defer publicly to allow time for processing
+    await interaction.response.defer(ephemeral=False)
 
-    try:
-        team1, error1 = get_user_team(uid1)
-        team2, error2 = get_user_team(uid2)
+    # 2) Validate challenger’s team
+    team1, err1 = get_user_team(uid1)
+    if err1:
+        return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
 
-        if error1:
-            await interaction.followup.send(f"⚠️ {interaction.user.display_name}: {error1}", ephemeral=True)
-            return
-        if error2:
-            await interaction.followup.send(f"⚠️ {player.display_name}: {error2}", ephemeral=True)
-            return
+    # 3) Validate opponent’s team
+    team2, err2 = get_user_team(uid2)
+    if err2:
+        return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
 
-        if not team1 or not team2:
-            await interaction.followup.send("❌ One or both players have no team configured.", ephemeral=True)
-            return
+    # 4) Both teams are ready: kick off the battle
+    await interaction.followup.send("⚔️ The duel begins!", ephemeral=False)
+    winner, log = simulate_battle(team1, team2)
 
-        winner, log = simulate_battle(team1, team2)
-
-        await narrate_simple_battle(
-            interaction,
-            log,
-            winner,
-            player1=interaction.user.display_name,
-            player2=player.display_name
-        )
-
-    except Exception as e:
-        await interaction.followup.send(f"❗ Internal error during the duel: {str(e)}", ephemeral=True)
+    # 5) Narrate the result publicly
+    await narrate_simple_battle(
+        interaction,
+        log,
+        winner,
+        player1=interaction.user,
+        player2=opponent,
+        ephemeral=False
+    )
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
