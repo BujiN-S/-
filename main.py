@@ -1520,15 +1520,13 @@ async def pvp(interaction: discord.Interaction):
     # Lanzar búsqueda automática
     asyncio.create_task(seek_battle())
 
-# A new slash command to duel another user's configured team, visible only to the initiator.
+
 @bot.tree.command(name="duel", description="Simulate a duel against a friend's team (ephemeral).")
 @app_commands.describe(opponent="The user whose team you want to challenge")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
-    # IDs of the challenger and the challenged
     uid1 = str(interaction.user.id)
     uid2 = str(opponent.id)
 
-    # Retrieve both teams from the database
     team1, error1 = get_user_team(uid1)
     if error1:
         return await interaction.response.send_message(error1, ephemeral=True)
@@ -1537,26 +1535,21 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     if error2:
         return await interaction.response.send_message(error2, ephemeral=True)
 
-    # Simulate the battle
     try:
         winner, log = simulate_battle(team1, team2)
     except Exception as e:
         return await interaction.response.send_message(f"❗ Internal error: {e}", ephemeral=True)
 
-    # Prepare narration title and initial message
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
-    content = title + "🏁 The duel has begun!"
+    content = title + "🏍️ The duel has begun!"
 
-    # Send the initial ephemeral message and capture it for edits
     await interaction.response.send_message(content, ephemeral=True)
     msg = await interaction.original_response()
 
-    # Step through each log entry with a brief pause
     for event in log:
-        await asyncio.sleep(3)  # Adjust pacing as desired
+        await asyncio.sleep(3)
         await msg.edit(content=title + event)
 
-    # Determine and display the final result
     await asyncio.sleep(2)
     if winner == "Team 1":
         result = f"🏆 {interaction.user.display_name} wins the duel!"
@@ -1566,6 +1559,7 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = "🤝 The duel ended in a draw!"
 
     await msg.edit(content=title + result)
+
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
