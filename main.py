@@ -1521,12 +1521,6 @@ async def pvp(interaction: discord.Interaction):
     asyncio.create_task(seek_battle())
 
 
-import copy
-import random
-import asyncio
-import discord
-from discord import app_commands
-
 @bot.tree.command(name="duel", description="Simulate a duel against a friend's team (ephemeral).")
 @app_commands.describe(opponent="The user whose team you want to challenge")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
