@@ -30,7 +30,6 @@ shop_packs = db_collections["shop_packs"]
 user_packs = db_collections["user_packs"]
 user_formations = db_collections["user_formations"]
 user_teams = db_collections["user_teams"]
-pvp_queue = db_collections["pvp_queue"]
 
 def color_by_rank(rank):
     colors = {
@@ -1546,43 +1545,39 @@ async def pvp(interaction: discord.Interaction):
     # Lanzar búsqueda automática
     asyncio.create_task(seek_battle())
 
-@bot.tree.command(name="duel", description="Start a duel against another player")
+@bot.tree.command(name="duel", description="Challenge another player")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
-    uid1 = interaction.user.id
-    uid2 = opponent.id
+    uid1 = str(interaction.user.id)
+    uid2 = str(opponent.id)
 
-    # 0) Prevent self‑duel
+    # 0) Evitar duelo contra uno mismo
     if uid1 == uid2:
-        await interaction.response.send_message(
-            "❌ You can't duel yourself!",
-            ephemeral=True
-        )
+        await interaction.response.send_message("❌ You can't duel yourself!", ephemeral=True)
         return
 
-    # 1) Defer publicly to allow time for processing
+    # 1) Defer público para liberar la interacción
     await interaction.response.defer(ephemeral=False)
 
-    # 2) Validate challenger’s team
+    # 2) Validar equipos
     team1, err1 = get_user_team(uid1)
     if err1:
         return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
 
-    # 3) Validate opponent’s team
     team2, err2 = get_user_team(uid2)
     if err2:
         return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
 
-    # 4) Both teams are ready: kick off the battle
+    # 3) Empieza el combate
     await interaction.followup.send("⚔️ The duel begins!", ephemeral=False)
     winner, log = simulate_battle(team1, team2)
 
-    # 5) Narrate the result publicly
+    # 4) Narrar resultado públicamente
     await narrate_simple_battle(
         interaction,
         log,
         winner,
-        player1=interaction.user,
-        player2=opponent,
+        player1=interaction.user.display_name,
+        player2=opponent.display_name,
         ephemeral=False
     )
 

@@ -14,8 +14,7 @@ def db_connect():
             "shop_packs": db["shop_packs"],
             "user_packs": db["user_packs"],
             "user_formations" : db["user_formations"],
-            "user_teams" : db["user_teams"],
-            "pvp_queue" : db["pvp_queue"]
+            "user_teams" : db["user_teams"]
         }
     except Exception as e:
         print(f"❌ Error al conectar con MongoDB: {e}")
@@ -30,9 +29,7 @@ def register_user(users, discord_id, user_name):
         "discordID": str(discord_id),
         "userName": str(user_name),
         "monedas": 0,
-        "clan": "Sin clan",
-        "poder_total": 0,
-        "card_count": 0
+        "clan": "nonr",
     })
 
 def update_user(users, discord_id, field, value):
