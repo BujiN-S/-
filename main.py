@@ -1558,7 +1558,7 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     # 1) Defer público para liberar la interacción
     await interaction.response.defer(ephemeral=False)
 
-    # 2) Validar equipos
+    # ─── 2) Validar equipos ────────────────────────────────────────────────────
     team1, err1 = get_user_team(uid1)
     if err1:
         return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
