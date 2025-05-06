@@ -1545,12 +1545,12 @@ async def pvp(interaction: discord.Interaction):
     # Lanzar búsqueda automática
     asyncio.create_task(seek_battle())
 
-@bot.tree.command(name="duel", description="Challenge another player")
+@bot.tree.command(name="duel", description="Start a duel against another player")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
     uid1 = str(interaction.user.id)
     uid2 = str(opponent.id)
 
-    # 0) Evitar duelo contra uno mismo
+    # ─── 0) Self‑duel check ──────────────────────────────────────────────────────
     if uid1 == uid2:
         await interaction.response.send_message("❌ You can't duel yourself!", ephemeral=True)
         return
