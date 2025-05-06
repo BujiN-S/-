@@ -1535,36 +1535,20 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     if error2:
         return await interaction.response.send_message(error2, ephemeral=True)
 
+    await interaction.response.defer(ephemeral=True)
+
     try:
         winner, log = simulate_battle(team1, team2)
     except Exception as e:
-        return await interaction.response.send_message(f"❗ Internal error: {e}", ephemeral=True)
+        return await interaction.followup.send(f"❗ Internal error: {e}", ephemeral=True)
 
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
-    initial = "🏁 The duel has begun!"
+    await interaction.edit_original_response(content=title + "🏁 The duel has begun!")
 
-    # send the initial ephemeral message
-    await interaction.response.send_message(title + initial, ephemeral=True)
+    for event in log:
+        await asyncio.sleep(3)
+        await interaction.edit_original_response(content=title + event)
 
-    # fetch the message to edit
-    msg = await interaction.original_response()
-
-    # if there are events, show the first immediately
-    if log:
-        try:
-            await msg.edit(content=title + log[0])
-        except Exception:
-            return
-
-        # iterate remaining events
-        for event in log[1:]:
-            await asyncio.sleep(3)
-            try:
-                await msg.edit(content=title + event)
-            except Exception:
-                break
-    
-    # pause before final result
     await asyncio.sleep(2)
     if winner == "Team 1":
         result = f"🏆 {interaction.user.display_name} wins the duel!"
@@ -1573,10 +1557,8 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     else:
         result = "🤝 The duel ended in a draw!"
 
-    try:
-        await msg.edit(content=title + result)
-    except Exception:
-        return
+    await asyncio.sleep(1)
+    await interaction.edit_original_response(content=title + result)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
