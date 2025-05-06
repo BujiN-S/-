@@ -1520,10 +1520,6 @@ async def pvp(interaction: discord.Interaction):
     # Lanzar búsqueda automática
     asyncio.create_task(seek_battle())
 
-import asyncio
-import discord
-from discord import app_commands
-
 # ─── A brand‑new narrator that cleanly handles ephemeral/public flags ─────────
 async def simple_narrate_battle(
     interaction: discord.Interaction,
@@ -1554,7 +1550,6 @@ async def simple_narrate_battle(
         champion = player1_name if winner == "Team 1" else player2_name
         result = f"🏆 **{champion}** wins the duel!"
     await msg.edit(content=header + result)
-
 
 # ─── A fresh /duel that never hangs or double‑acks ─────────────────────────────
 @bot.tree.command(name="duel", description="Start a duel against another player")
