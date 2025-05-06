@@ -1547,15 +1547,18 @@ async def pvp(interaction: discord.Interaction):
 
 @bot.tree.command(name="duel", description="Start a duel against another player")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
-    uid1 = str(interaction.user.id)
-    uid2 = str(opponent.id)
+    uid1 = interaction.user.id
+    uid2 = opponent.id
 
     # ─── 0) Self‑duel check ──────────────────────────────────────────────────────
     if uid1 == uid2:
-        await interaction.response.send_message("❌ You can't duel yourself!", ephemeral=True)
-        return
+        # respondemos y SALIMOS *antes* de cualquier defer
+        return await interaction.response.send_message(
+            "❌ You can't duel yourself!",
+            ephemeral=True
+        )
 
-    # 1) Defer público para liberar la interacción
+    # ─── 1) Defer público ───────────────────────────────────────────────────────
     await interaction.response.defer(ephemeral=False)
 
     # ─── 2) Validar equipos ────────────────────────────────────────────────────
@@ -1571,13 +1574,13 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     await interaction.followup.send("⚔️ The duel begins!", ephemeral=False)
     winner, log = simulate_battle(team1, team2)
 
-    # 4) Narrar resultado públicamente
+    # ─── 4) Narrar resultado ───────────────────────────────────────────────────
     await narrate_simple_battle(
         interaction,
         log,
         winner,
-        player1=interaction.user.display_name,
-        player2=opponent.display_name,
+        player1=interaction.user,
+        player2=opponent,
         ephemeral=False
     )
 
