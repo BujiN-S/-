@@ -1520,78 +1520,50 @@ async def pvp(interaction: discord.Interaction):
     # Lanzar búsqueda automática
     asyncio.create_task(seek_battle())
 
-# ─── A brand‑new narrator that cleanly handles ephemeral/public flags ─────────
-async def simple_narrate_battle(
-    interaction: discord.Interaction,
-    log: list[str],
-    winner: str,
-    player1_name: str,
-    player2_name: str,
-    *,
-    ephemeral: bool = False
-):
-    header = f"⚔️ **{player1_name}** vs **{player2_name}**\n\n"
-    # Send initial kickoff
-    msg = await interaction.followup.send(
-        header + "🏁 The duel is starting...", 
-        ephemeral=ephemeral
-    )
+@bot.tree.command(name="duel", description="Start a duel against another player")
+async def duel(interaction: discord.Interaction, opponent: discord.User):
+    uid1 = interaction.user.id
+    uid2 = opponent.id
 
-    # Step through each event in the log
-    for event in log:
-        await asyncio.sleep(2)  # pacing
-        await msg.edit(content=header + event)
+    # 0) Prevent self‑duel
+    if uid1 == uid2:
+        return await interaction.response.send_message(
+            "❌ You can't duel yourself!",
+            ephemeral=True
+        )
 
-    # Final result
+    # 1) Single ACK: defer publicly
+    await interaction.response.defer(ephemeral=False)
+
+    # 2) Load & validate both teams
+    team1, err1 = get_user_team(str(uid1))
+    if err1:
+        return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
+
+    team2, err2 = get_user_team(str(uid2))
+    if err2:
+        return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
+
+    # Prepare header
+    header = f"⚔️ **{interaction.user.display_name}** vs **{opponent.display_name}**\n\n"
+
+    # 3) Send the kickoff message and run the battle off the event loop
+    msg = await interaction.followup.send(header + "🏁 The duel begins!", ephemeral=False)
+    winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
+
+    # 4) Step through the log by editing the same message
+    for entry in log:
+        await asyncio.sleep(2)        # pacing between rounds
+        await msg.edit(content=header + entry)
+
+    # 5) Final result
     await asyncio.sleep(1)
     if winner.lower() == "draw":
         result = "🤝 The duel ended in a draw!"
     else:
-        champion = player1_name if winner == "Team 1" else player2_name
+        champion = interaction.user.display_name if winner == "Team 1" else opponent.display_name
         result = f"🏆 **{champion}** wins the duel!"
     await msg.edit(content=header + result)
-
-# ─── A fresh /duel that never hangs or double‑acks ─────────────────────────────
-@bot.tree.command(name="duel", description="Start a duel against another player")
-async def duel(
-    interaction: discord.Interaction,
-    opponent: discord.User
-):
-    uid1 = str(interaction.user.id)
-    uid2 = str(opponent.id)
-
-    # 0) Prevent self‑duel (single send_message + return)
-    if uid1 == uid2:
-        return await interaction.response.send_message(
-            "❌ You can't duel yourself!", 
-            ephemeral=True
-        )
-
-    # 1) Defer publicly (one and only one ACK)
-    await interaction.response.defer(ephemeral=False)
-
-    # 2) Validate both teams
-    team1, err1 = get_user_team(uid1)
-    if err1:
-        return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
-
-    team2, err2 = get_user_team(uid2)
-    if err2:
-        return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
-
-    # 3) Kick off simulation off the event loop
-    await interaction.followup.send("⚔️ The duel begins!", ephemeral=False)
-    winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
-
-    # 4) Walk through the log and finish
-    await simple_narrate_battle(
-        interaction,
-        log,
-        winner,
-        interaction.user.display_name,
-        opponent.display_name,
-        ephemeral=False
-    )
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
