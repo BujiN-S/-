@@ -1528,18 +1528,19 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     uid2 = str(opponent.id)
     team1, error1 = get_user_team(uid1)
     if error1:
-        return await interaction.response.send_message(error1, ephemeral=True)
+        await interaction.response.send_message(error1, ephemeral=True)
+        return
     team2, error2 = get_user_team(uid2)
     if error2:
-        return await interaction.response.send_message(error2, ephemeral=True)
+        await interaction.response.send_message(error2, ephemeral=True)
+        return
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
     await interaction.response.send_message(title + "🏁 The duel has begun!", ephemeral=True)
-    msg = await interaction.original_response()
     loop = asyncio.get_running_loop()
     winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
     for event in log:
         await asyncio.sleep(3)
-        await msg.edit(content=title + event)
+        await interaction.edit_original_response(content=title + event)
     await asyncio.sleep(2)
     if winner == "Team 1":
         result = f"🏆 {interaction.user.display_name} wins the duel!"
@@ -1547,7 +1548,7 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = f"🏆 {opponent.display_name} wins the duel!"
     else:
         result = "🤝 The duel ended in a draw!"
-    await msg.edit(content=title + result)
+    await interaction.edit_original_response(content=title + result)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
