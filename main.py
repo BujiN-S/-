@@ -1434,31 +1434,6 @@ async def narrate_dual_battle(interaction1, interaction2, log, winner, player1, 
     await msg1.edit(content=title + result)
     await msg2.edit(content=title + result)
 
-async def narrate_simple_battle(interaction, log, winner, player1, player2):
-    title = f"⚔️ {player1} vs {player2}\n\n"
-    content = title + "🏁 The battle has begun!"
-
-    try:
-        msg = await interaction.followup.send(content=content)
-
-        for event in log:
-            await asyncio.sleep(3)
-            await msg.edit(content=title + event)
-
-        await asyncio.sleep(2)
-
-        if winner == "draw":
-            result = "🤝 The battle ended in a draw!"
-        elif winner == "Team 1":
-            result = f"🏆 {player1} has won the duel!"
-        else:
-            result = f"🏆 {player2} has won the duel!"
-
-        await msg.edit(content=title + result)
-
-    except Exception:
-        await interaction.followup.send("❗ An error occurred while narrating the battle.")
-
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
     print(f"[DEBUG] Getting team of {uid}")
@@ -1545,23 +1520,62 @@ async def pvp(interaction: discord.Interaction):
     # Lanzar búsqueda automática
     asyncio.create_task(seek_battle())
 
+import asyncio
+import discord
+from discord import app_commands
+
+# ─── A brand‑new narrator that cleanly handles ephemeral/public flags ─────────
+async def simple_narrate_battle(
+    interaction: discord.Interaction,
+    log: list[str],
+    winner: str,
+    player1_name: str,
+    player2_name: str,
+    *,
+    ephemeral: bool = False
+):
+    header = f"⚔️ **{player1_name}** vs **{player2_name}**\n\n"
+    # Send initial kickoff
+    msg = await interaction.followup.send(
+        header + "🏁 The duel is starting...", 
+        ephemeral=ephemeral
+    )
+
+    # Step through each event in the log
+    for event in log:
+        await asyncio.sleep(2)  # pacing
+        await msg.edit(content=header + event)
+
+    # Final result
+    await asyncio.sleep(1)
+    if winner.lower() == "draw":
+        result = "🤝 The duel ended in a draw!"
+    else:
+        champion = player1_name if winner == "Team 1" else player2_name
+        result = f"🏆 **{champion}** wins the duel!"
+    await msg.edit(content=header + result)
+
+
+# ─── A fresh /duel that never hangs or double‑acks ─────────────────────────────
 @bot.tree.command(name="duel", description="Start a duel against another player")
-async def duel(interaction: discord.Interaction, opponent: discord.User):
+async def duel(
+    interaction: discord.Interaction,
+    opponent: discord.User
+):
     uid1 = interaction.user.id
     uid2 = opponent.id
 
-    # ─── 0) Self‑duel guard ─────────────────────────────────────────────────────
+    # 0) Prevent self‑duel (single send_message + return)
     if uid1 == uid2:
         return await interaction.response.send_message(
-            "❌ You can't duel yourself!",
+            "❌ You can't duel yourself!", 
             ephemeral=True
         )
-    # <-- note: we RETURN here, so no further ACKs
 
-    # ─── 1) Single ACK: defer publicly ─────────────────────────────────────────
+    # 1) Defer publicly (one and only one ACK)
     await interaction.response.defer(ephemeral=False)
 
-    # ─── 2) Team validation ────────────────────────────────────────────────────
+    # 2) Validate both teams
     team1, err1 = get_user_team(uid1)
     if err1:
         return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
@@ -1570,17 +1584,17 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     if err2:
         return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
 
-    # ─── 3) Announce & simulate off loop ───────────────────────────────────────
+    # 3) Kick off simulation off the event loop
     await interaction.followup.send("⚔️ The duel begins!", ephemeral=False)
     winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
 
-    # ─── 4) Narrate result ─────────────────────────────────────────────────────
-    await narrate_simple_battle(
+    # 4) Walk through the log and finish
+    await simple_narrate_battle(
         interaction,
         log,
         winner,
-        player1=interaction.user,
-        player2=opponent,
+        interaction.user.display_name,
+        opponent.display_name,
         ephemeral=False
     )
 
