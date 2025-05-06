@@ -1567,7 +1567,7 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     if err2:
         return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
 
-    # 3) Empieza el combate
+    # ─── 3) Lanzar combate ─────────────────────────────────────────────────────
     await interaction.followup.send("⚔️ The duel begins!", ephemeral=False)
     winner, log = simulate_battle(team1, team2)
 
