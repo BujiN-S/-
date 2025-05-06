@@ -1550,18 +1550,18 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     uid1 = interaction.user.id
     uid2 = opponent.id
 
-    # ─── 0) Self‑duel check ──────────────────────────────────────────────────────
+    # ─── 0) Self‑duel guard ─────────────────────────────────────────────────────
     if uid1 == uid2:
-        # respondemos y SALIMOS *antes* de cualquier defer
         return await interaction.response.send_message(
             "❌ You can't duel yourself!",
             ephemeral=True
         )
+    # <-- note: we RETURN here, so no further ACKs
 
-    # ─── 1) Defer público ───────────────────────────────────────────────────────
+    # ─── 1) Single ACK: defer publicly ─────────────────────────────────────────
     await interaction.response.defer(ephemeral=False)
 
-    # ─── 2) Validar equipos ────────────────────────────────────────────────────
+    # ─── 2) Team validation ────────────────────────────────────────────────────
     team1, err1 = get_user_team(uid1)
     if err1:
         return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
@@ -1570,11 +1570,11 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     if err2:
         return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
 
-    # ─── 3) Lanzar combate ─────────────────────────────────────────────────────
+    # ─── 3) Announce & simulate off loop ───────────────────────────────────────
     await interaction.followup.send("⚔️ The duel begins!", ephemeral=False)
-    winner, log = simulate_battle(team1, team2)
+    winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
 
-    # ─── 4) Narrar resultado ───────────────────────────────────────────────────
+    # ─── 4) Narrate result ─────────────────────────────────────────────────────
     await narrate_simple_battle(
         interaction,
         log,
