@@ -1521,6 +1521,12 @@ async def pvp(interaction: discord.Interaction):
     asyncio.create_task(seek_battle())
 
 
+import copy
+import random
+import asyncio
+import discord
+from discord import app_commands
+
 @bot.tree.command(name="duel", description="Simulate a duel against a friend's team (ephemeral).")
 @app_commands.describe(opponent="The user whose team you want to challenge")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
@@ -1541,14 +1547,30 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         return await interaction.response.send_message(f"❗ Internal error: {e}", ephemeral=True)
 
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
-    content = title + "🏁 The duel has begun!"
+    initial = "🏁 The duel has begun!"
 
-    await interaction.response.send_message(content, ephemeral=True)
+    # send the initial ephemeral message
+    await interaction.response.send_message(title + initial, ephemeral=True)
 
-    for event in log:
-        await asyncio.sleep(3)
-        await interaction.edit_original_response(content=title + event)
+    # fetch the message to edit
+    msg = await interaction.original_response()
 
+    # if there are events, show the first immediately
+    if log:
+        try:
+            await msg.edit(content=title + log[0])
+        except Exception:
+            return
+
+        # iterate remaining events
+        for event in log[1:]:
+            await asyncio.sleep(3)
+            try:
+                await msg.edit(content=title + event)
+            except Exception:
+                break
+    
+    # pause before final result
     await asyncio.sleep(2)
     if winner == "Team 1":
         result = f"🏆 {interaction.user.display_name} wins the duel!"
@@ -1557,8 +1579,10 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     else:
         result = "🤝 The duel ended in a draw!"
 
-    await interaction.edit_original_response(content=title + result)
-
+    try:
+        await msg.edit(content=title + result)
+    except Exception:
+        return
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
