@@ -551,3 +551,96 @@ Traceback (most recent call last):
   File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 876, in _do_call
     raise CommandInvokeError(self, e) from e
 discord.app_commands.errors.CommandInvokeError: Command 'duel' raised an exception: HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+Ignoring exception in on_ready
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+  File "c:\Users\Maria Rairez\Desktop\TCG\main.py", line 190, in on_ready
+    bot.add_view(CatalogView([]))
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\client.py", line 3182, in add_view
+    raise ValueError('View is not persistent. Items need to have a custom_id set and View must have no timeout')
+ValueError: View is not persistent. Items need to have a custom_id set and View must have no timeout
+Ignoring exception in command 'duel'
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 858, in _do_call
+    return await self._callback(interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\Maria Rairez\Desktop\TCG\main.py", line 1566, in duel
+    await interaction.response.defer(ephemeral=False)
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\interactions.py", line 844, in defer
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\webhook\async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\tree.py", line 1310, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 883, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 876, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'duel' raised an exception: HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+Ignoring exception in on_ready
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\client.py", line 481, in _run_event
+    await coro(*args, **kwargs)
+  File "c:\Users\Maria Rairez\Desktop\TCG\main.py", line 190, in on_ready
+    bot.add_view(CatalogView([]))
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\client.py", line 3182, in add_view
+    raise ValueError('View is not persistent. Items need to have a custom_id set and View must have no timeout')
+ValueError: View is not persistent. Items need to have a custom_id set and View must have no timeout
+Ignoring exception in command 'duel'
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 858, in _do_call
+    return await self._callback(interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\Maria Rairez\Desktop\TCG\main.py", line 1572, in duel
+    await interaction.response.defer(ephemeral=False)
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\interactions.py", line 844, in defer
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\webhook\async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\tree.py", line 1310, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 883, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 876, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'duel' raised an exception: HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+Ignoring exception in command 'duel'
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 858, in _do_call
+    return await self._callback(interaction, **params)  # type: ignore
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\Maria Rairez\Desktop\TCG\main.py", line 1572, in duel
+    await interaction.response.defer(ephemeral=False)
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\interactions.py", line 844, in defer
+    response = await adapter.create_interaction_response(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\webhook\async_.py", line 226, in request
+    raise HTTPException(response, data)
+discord.errors.HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\tree.py", line 1310, in _call
+    await command._invoke_with_namespace(interaction, namespace)
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 883, in _invoke_with_namespace
+    return await self._do_call(interaction, transformed_values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Maria Rairez\AppData\Local\Programs\Python\Python311\Lib\site-packages\discord\app_commands\commands.py", line 876, in _do_call
+    raise CommandInvokeError(self, e) from e
+discord.app_commands.errors.CommandInvokeError: Command 'duel' raised an exception: HTTPException: 400 Bad Request (error code: 40060): Interaction has already been acknowledged.
