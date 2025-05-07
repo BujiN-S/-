@@ -838,7 +838,7 @@ async def open(interaction: Interaction):
 
 @bot.tree.command(name="sell", description="Sell a card from your collection.")
 @app_commands.describe(id="The ID of the card you want to sell")
-async def sell(interaction: discord.Interaction, id: str):
+async def sell(interaction: discord.Interaction, card_id: int):
     uid = str(interaction.user.id)
     try:
         # 1. Validar que el usuario tenga cartas
@@ -868,7 +868,7 @@ async def sell(interaction: discord.Interaction, id: str):
         # 5. Eliminar la carta
         user_cards.update_one(
             {"discordID": uid},
-            {"$pull": {"cards": {"card_id": id}}}
+            {"$pull": {"cards": {"card_id": card_id}}}
         )
 
         # 6. Sumar monedas
