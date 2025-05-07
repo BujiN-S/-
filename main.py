@@ -1526,21 +1526,33 @@ async def pvp(interaction: discord.Interaction):
 async def duel(interaction: discord.Interaction, opponent: discord.User):
     uid1 = str(interaction.user.id)
     uid2 = str(opponent.id)
+
+    # Validar equipos
     team1, error1 = get_user_team(uid1)
     if error1:
-        await interaction.response.send_message(error1, ephemeral=True)
-        return
+        return await interaction.response.send_message(error1, ephemeral=True)
     team2, error2 = get_user_team(uid2)
     if error2:
-        await interaction.response.send_message(error2, ephemeral=True)
-        return
+        return await interaction.response.send_message(error2, ephemeral=True)
+
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
-    await interaction.response.send_message(title + "🏁 The duel has begun!", ephemeral=True)
+
+    # Acknowledge the interaction to allow edits and long processing
+    await interaction.response.defer(ephemeral=True)
+
+    # Enviar mensaje inicial como follow-up y guardar referencia
+    duel_msg = await interaction.followup.send(content=title + "🏁 The duel has begun!")
+
+    # Ejecutar simulación en un hilo para no bloquear el loop principal
     loop = asyncio.get_running_loop()
     winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
+
+    # Narrar cada evento editando el mensaje
     for event in log:
         await asyncio.sleep(3)
-        await interaction.edit_original_response(content=title + event)
+        await duel_msg.edit(content=title + event)
+
+    # Mostrar el resultado final
     await asyncio.sleep(2)
     if winner == "Team 1":
         result = f"🏆 {interaction.user.display_name} wins the duel!"
@@ -1548,7 +1560,8 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = f"🏆 {opponent.display_name} wins the duel!"
     else:
         result = "🤝 The duel ended in a draw!"
-    await interaction.edit_original_response(content=title + result)
+
+    await duel_msg.edit(content=title + result)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
