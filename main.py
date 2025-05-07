@@ -528,7 +528,7 @@ class CatalogView(ui.View):
         card = next((c for c in self.cards if c['id'] == card_id), None)
         if card:
             embed = generate_card_embed(card, show_footer=False)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed)
         else:
             await interaction.response.send_message("❌ Card not found.", ephemeral=True)
 
