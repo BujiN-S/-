@@ -788,7 +788,11 @@ class OpenPackButton(ui.Button):
         add_user_card(self.user_id, card)
 
         # Mostrar solo la imagen de la carta
-        card_embed = Embed(color=color_by_rank(card["rank"]))
+        card_embed = Embed(
+            title=f"{card['name']} [{card['rank']}]",
+            description=f"{card['class']} • {card['role']}",
+            color=color_by_rank(card["rank"])
+        )
         card_embed.set_image(url=card.get("image", ""))
         card_embed.set_footer(text=f"🎁 You opened a {pack['name']}")
 
