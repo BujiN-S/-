@@ -1522,6 +1522,7 @@ async def pvp(interaction: discord.Interaction):
 
 
 
+
 @bot.tree.command(name="duel", description="Simulate a duel against a friend's team (ephemeral).")
 @app_commands.describe(opponent="The user whose team you want to challenge")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
@@ -1538,13 +1539,13 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
 
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
 
-    # Enviamos mensaje inicial inmediatamente
-    await interaction.response.send_message(title + "🏁 The duel has begun!", ephemeral=True)
+    # Defer para indicar que procesaremos largo
+    await interaction.response.defer(ephemeral=True)
 
-    # Obtenemos el mensaje para editarlo
-    duel_msg = await interaction.original_response()
+    # Enviar mensaje inicial como followup y capturar referencia
+    duel_msg = await interaction.followup.send(content=title + "🏁 The duel has begun!")
 
-    # Ejecutar simulación en un hilo para no bloquear el loop principal
+    # Ejecutar simulación en thread pool
     loop = asyncio.get_running_loop()
     try:
         winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
@@ -1552,12 +1553,12 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         logging.error(f"[ERROR] Duel simulation failed: {e}")
         return await duel_msg.edit(content="❗ An internal error occurred during the duel.")
 
-    # Narrar cada evento editando el mismo mensaje
+    # Narración paso a paso
     for event in log:
         await asyncio.sleep(3)
         await duel_msg.edit(content=title + event)
 
-    # Mostrar el resultado final
+    # Resultado final
     await asyncio.sleep(2)
     if winner == "Team 1":
         result = f"🏆 {interaction.user.display_name} wins the duel!"
@@ -1567,6 +1568,8 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = "🤝 The duel ended in a draw!"
 
     await duel_msg.edit(content=title + result)
+
+
 
 
 def run_bot():
