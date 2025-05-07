@@ -1521,9 +1521,7 @@ async def pvp(interaction: discord.Interaction):
     asyncio.create_task(seek_battle())
 
 
-
-
-@bot.tree.command(name="duel", description="Simulate a duel against a friend's team (ephemeral).")
+@bot.tree.command(name="duel", description="Simulate a duel against a friend's team.")
 @app_commands.describe(opponent="The user whose team you want to challenge")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
     uid1 = str(interaction.user.id)
@@ -1539,13 +1537,13 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
 
     title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
 
-    # Defer para indicar que procesaremos largo
-    await interaction.response.defer(ephemeral=True)
+    # Defer público
+    await interaction.response.defer(ephemeral=False)
 
-    # Enviar mensaje inicial como followup y capturar referencia
-    duel_msg = await interaction.followup.send(content=title + "🏁 The duel has begun!")
+    # Enviar mensaje inicial visible para todos
+    duel_msg = await interaction.followup.send(content=title + "🏁 The duel has begun!", ephemeral=False)
 
-    # Ejecutar simulación en thread pool
+    # Ejecutar simulación
     loop = asyncio.get_running_loop()
     try:
         winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
@@ -1568,6 +1566,7 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = "🤝 The duel ended in a draw!"
 
     await duel_msg.edit(content=title + result)
+
 
 
 
