@@ -1373,35 +1373,29 @@ def simulate_battle(e1, e2):
         current_round += 1
 
 async def seek_battle():
+    print(f"[DEBUG] seek_battle called: queue size = {len(pvp_queue)}")
     while len(pvp_queue) >= 2:
+        # Pop the first two players off the queue
         player1 = pvp_queue.pop(0)
         player2 = pvp_queue.pop(0)
 
+        # Extract their Discord Message objects and IDs
+        msg1 = player1["message"]
+        msg2 = player2["message"]
         uid1 = player1["user_id"]
         uid2 = player2["user_id"]
-        interaction1 = player1["interaction"]
-        interaction2 = player2["interaction"]
 
-        rival1 = await bot.fetch_user(int(uid1))
-        rival2 = await bot.fetch_user(int(uid2))
+        # Fetch their display names
+        user1 = await bot.fetch_user(int(uid1))
+        user2 = await bot.fetch_user(int(uid2))
 
-        # Verificar equipos
-        team1, error1 = get_user_team(uid1)
-        team2, error2 = get_user_team(uid2)
+        # 1) Edit both messages to announce the matchup
+        await msg1.edit(content=f"⚔️ You are facing **{user2.display_name}**!")
+        await msg2.edit(content=f"⚔️ You are facing **{user1.display_name}**!")
+        print(f"[DEBUG] Matched {uid1} vs {uid2}, launching battle…")
 
-        if error1 or error2:
-            if error1:
-                await interaction1.followup.send(error1)
-            if error2:
-                await interaction2.followup.send(error2)
-            return
-
-        # Avisar a ambos que tienen rival
-        await interaction1.followup.send(f"⚔️ You face off against {rival2.display_name}!", ephemeral=False)
-        await interaction2.followup.send(f"⚔️ You face off against {rival1.display_name}!", ephemeral=False)
-
-        # Iniciar combate paralelo
-        asyncio.create_task(pvp_battle(interaction1, interaction2, team1, team2, rival1, rival2))
+        # 2) Kick off the actual battle simulation
+        asyncio.create_task(run_pvp_battle(msg1, msg2, uid1, uid2))
 
 async def pvp_battle(interaction1, interaction2, team1, team2, rival1, rival2):
     try:
@@ -1411,32 +1405,85 @@ async def pvp_battle(interaction1, interaction2, team1, team2, rival1, rival2):
         await interaction2.followup.send(f"❗ Internal error: {str(e)}")
         return
 
-    await narrate_dual_battle(interaction1, interaction2, log, winner, rival1, rival2)
+    await run_pvp_battle(interaction1, interaction2, log, winner, rival1, rival2)
 
-async def narrate_dual_battle(interaction1, interaction2, log, winner, player1, player2):
-    title = f"⚔️ {player1.display_name} vs {player2.display_name}\n\n"
-    content = title + "🏁 The battle has begun!"
-    
-    msg1 = await interaction1.followup.send(content=content)
-    msg2 = await interaction2.followup.send(content=content)
+# /pvp command
+@bot.tree.command(name="pvp", description="Join the queue for PvP battles.")
+async def pvp(interaction: discord.Interaction):
+    user_id = str(interaction.user.id)
 
+    # 1) Validate that the user has a team
+    team, error = get_user_team(user_id)
+    if error:
+        return await interaction.response.send_message(error, ephemeral=True)
+
+    # 2) Prevent duplicate queue entries
+    if any(entry["user_id"] == user_id for entry in pvp_queue):
+        return await interaction.response.send_message("⏳ You're already in the queue.", ephemeral=True)
+
+    # 3) Send the initial public message and grab it
+    await interaction.response.send_message("🔵 You have joined the PvP queue…", ephemeral=False)
+    queue_message = await interaction.original_response()
+
+    # 4) Store in queue and log
+    pvp_queue.append({"user_id": user_id, "message": queue_message})
+    print(f"[DEBUG] Queue length is now {len(pvp_queue)}")
+
+    # 5) Try to match players
+    asyncio.create_task(match_players())
+
+# Matching function
+async def match_players():
+    print(f"[DEBUG] match_players called: queue size = {len(pvp_queue)}")
+    while len(pvp_queue) >= 2:
+        player1 = pvp_queue.pop(0)
+        player2 = pvp_queue.pop(0)
+
+        msg1, msg2 = player1["message"], player2["message"]
+        uid1, uid2 = player1["user_id"], player2["user_id"]
+
+        user1 = await bot.fetch_user(int(uid1))
+        user2 = await bot.fetch_user(int(uid2))
+
+        # 1) Edit both messages to announce the matchup
+        await msg1.edit(content=f"⚔️ You are facing **{user2.display_name}**!")
+        await msg2.edit(content=f"⚔️ You are facing **{user1.display_name}**!")
+        print(f"[DEBUG] Matched {uid1} vs {uid2}, starting battle…")
+
+        # 2) Launch the battle simulation
+        asyncio.create_task(run_pvp_battle(msg1, msg2, uid1, uid2))
+
+
+
+# Battle simulation and narration
+async def run_pvp_battle(msg1: discord.Message, msg2: discord.Message, uid1: str, uid2: str):
+    # 1) Load both teams
+    team1, _ = get_user_team(uid1)
+    team2, _ = get_user_team(uid2)
+
+    # 2) Simulate in a thread pool
+    loop = asyncio.get_running_loop()
+    winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
+
+    # 3) Narrate each round by editing
     for event in log:
-        await asyncio.sleep(3)  # Aquí puedes ajustar el tiempo de narración
-        new_content = title + event
-        await msg1.edit(content=new_content)
-        await msg2.edit(content=new_content)
+        await asyncio.sleep(3)
+        await msg1.edit(content=event)
+        await msg2.edit(content=event)
 
+    # 4) Final result
     await asyncio.sleep(2)
-
-    if winner == "draw":
-        result = "🤝 The battle ended in a draw!"
-    elif winner == "Team 1":
-        result = f"🏆 {player1.display_name} has won the battle!"
+    if winner == "Team 1":
+        result1 = f"🏆 **{bot.get_user(int(uid1)).display_name}** wins!"
+        result2 = f"😭 You lost to **{bot.get_user(int(uid1)).display_name}**."
+    elif winner == "Team 2":
+        result1 = f"😭 You lost to **{bot.get_user(int(uid2)).display_name}**."
+        result2 = f"🏆 **{bot.get_user(int(uid2)).display_name}** wins!"
     else:
-        result = f"🏆 {player2.display_name} has won the battle!"
+        result1 = result2 = "🤝 The battle ended in a draw!"
 
-    await msg1.edit(content=title + result)
-    await msg2.edit(content=title + result)
+    await msg1.edit(content=result1)
+    await msg2.edit(content=result2)
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
@@ -1503,27 +1550,6 @@ def get_user_team(uid: str):
 
     return team, None
 
-@bot.tree.command(name="pvp", description="Battle against other players.")
-async def pvp(interaction: discord.Interaction):
-    uid = str(interaction.user.id)
-
-    # Verificar si ya tienes equipo
-    team1, error = get_user_team(uid)
-    if error:
-        return await interaction.response.send_message(error, ephemeral=True)
-
-    # Verificar si ya estás en cola
-    if any(entry["user_id"] == uid for entry in pvp_queue):
-        return await interaction.response.send_message("⏳ You're already waiting in the queue...", ephemeral=True)
-
-    # Agregar a la cola
-    pvp_queue.append({"user_id": uid, "interaction": interaction})
-
-    await interaction.response.send_message("🔵 You've joined the queue. Waiting for an opponent...", ephemeral=True)
-
-    # Lanzar búsqueda automática
-    asyncio.create_task(seek_battle())
-
 
 @bot.tree.command(name="duel", description="Simulate a duel against a friend's team.")
 @app_commands.describe(opponent="The user whose team you want to challenge")
@@ -1570,10 +1596,6 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = "🤝 The duel ended in a draw!"
 
     await duel_msg.edit(content=title + result)
-
-
-
-
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
