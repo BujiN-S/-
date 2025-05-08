@@ -14,6 +14,7 @@ from discord.ui import View, Button
 import copy
 import logging
 import traceback
+from discord.errors import HTTPException
 
 # at top of your bot file
 logger = logging.getLogger("discord")
@@ -1697,34 +1698,48 @@ async def match_players():
         # Narrate
         asyncio.create_task(run_pvp_battle(msg1, msg2, uid1, uid2))
 
-async def run_pvp_battle(msg1: Message, msg2: Message, uid1: str, uid2: str):
-    # Load teams
-    team1, _ = get_user_team(uid1)
-    team2, _ = get_user_team(uid2)
+async def run_pvp_battle(msg1, msg2, team1, team2, user1, user2):
+    # Simulación
+    winner, log = simulate_battle(team1, team2)
 
-    loop = asyncio.get_running_loop()
-    winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
+    title = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
+    # Envío mensaje inicial
+    await msg1.edit(content=title + "🏁 The battle has begun!")
+    await msg2.edit(content=title + "🏁 The battle has begun!")
 
-    # Send each log event
+    # Narración por eventos
     for event in log:
-        await asyncio.sleep(2)
-        await msg1.edit(content=event)
-        await msg2.edit(content=event)
+        await asyncio.sleep(5)  # espera un poco más para no pisar rate limits
+        content = title + event
+        for msg in (msg1, msg2):
+            for attempt in range(3):
+                try:
+                    await msg.edit(content=content)
+                    break
+                except HTTPException as e:
+                    if e.status == 429:
+                        # si Discord devuelve retry-after en headers, úsalo; si no, 5s
+                        retry = float(e.response.headers.get("retry-after", 5))
+                        await asyncio.sleep(retry)
+                    else:
+                        # otro error, abortamos edición
+                        break
 
-    # Final result
-    await asyncio.sleep(1)
+    # Ronda final y anuncio de ganador
+    await asyncio.sleep(5)
     if winner == "Team 1":
-        result1 = f"🏆 **{bot.get_user(int(uid1)).display_name}** wins!"
-        result2 = f"😭 You lost to **{bot.get_user(int(uid1)).display_name}**."
+        result = f"🏆 {user1.display_name} wins the duel!"
     elif winner == "Team 2":
-        result1 = f"😭 You lost to **{bot.get_user(int(uid2)).display_name}**."
-        result2 = f"🏆 **{bot.get_user(int(uid2)).display_name}** wins!"
+        result = f"🏆 {user2.display_name} wins the duel!"
     else:
-        result1 = result2 = "🤝 The battle ended in a draw!"
+        result = "🤝 The duel ended in a draw!"
 
-    await msg1.edit(content=result1)
-    await msg2.edit(content=result2)
-    print(f"[DEBUG] Battle complete for {uid1} vs {uid2}")
+    # Intentamos editar de nuevo, pero si falla, al menos termina el método
+    try:
+        await msg1.edit(content=title + result)
+        await msg2.edit(content=title + result)
+    except HTTPException:
+        pass
 
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
