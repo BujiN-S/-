@@ -9,7 +9,7 @@ from db.database import db_connect, verify_user, register_user
 from datetime import datetime, timedelta
 import random
 from discord import ui, ButtonStyle
-from discord import Interaction, Embed, Color
+from discord import Interaction, Embed, Color, Message
 from discord.ui import View, Button
 import copy
 import logging
@@ -190,7 +190,7 @@ async def on_ready():
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
 
-pvp_queue = []
+pvp_queue: list[dict] = []
 
 @bot.tree.command(name="start", description="Start your adventure!")
 async def start(interaction: discord.Interaction):
@@ -1135,264 +1135,6 @@ async def remove(interaction: discord.Interaction, slot: int):
         f"✅ Card '{removed_card}' removed from slot {slot} ({slots[slot-1].capitalize()})."
     )
 
-def simulate_battle(e1, e2):
-
-    MAX_ROUNDS = 7
-    log = []
-    current_round = 1
-
-    # Deep‐copy so we don’t mutate the originals
-    cards1 = [copy.deepcopy(c) for c in e1]
-    cards2 = [copy.deepcopy(c) for c in e2]
-
-    round_phrases = [
-        "A new round of battles begins.",
-        "The cards are preparing for another fierce battle.",
-        "A new round begins: every move could be decisive."
-    ]
-
-    try:
-        while current_round <= MAX_ROUNDS:
-            log.append(f"⚔️ Round {current_round}: {random.choice(round_phrases)}")
-
-            # Build initiative pool of living cards
-            pool = [(c, 1) for c in cards1 if c['hp'] > 0] + [(c, 2) for c in cards2 if c['hp'] > 0]
-            pool.sort(key=lambda x: x[0]['vel'] + random.randint(0, 3), reverse=True)
-
-            for card, team in pool:
-                if card['hp'] <= 0:
-                    continue
-
-                allies = cards1 if team == 1 else cards2
-                enemies = cards2 if team == 1 else cards1
-                alives = [c for c in enemies if c['hp'] > 0]
-
-                # If no enemies remain, we have a winner
-                if not alives:
-                    winner = "Team 1" if team == 1 else "Team 2"
-                    log.append(f"🏁 {card['name']} delivers the final blow!")
-                    return winner, log
-
-                target = min(alives, key=lambda x: x['hp'])
-                role = card['role'].lower().strip()
-
-                # Basic stats check
-                if not all(k in card for k in ("atk", "def", "vel", "hp", "int", "max_hp")):
-                    log.append(f"⚠️ Skipping {card.get('name', '?')} due to missing stats.")
-                    continue
-
-                # --- Support Roles ---
-                if role == "healer":
-                    injured = [a for a in allies if 0 < a['hp'] < a['max_hp'] and a != card]
-                    if injured:
-                        a = random.choice(injured)
-                        amt = int(a['max_hp'] * 0.2 + card['int'] * 0.1)
-                        a['hp'] = min(a['hp'] + amt, a['max_hp'])
-                        phrases = [
-                            "{card} restored {a}'s vitality, healing +{amt}HP.",
-                            "{card} cast a healing spell on {a}, restoring +{amt}HP.",
-                            "{card} tended to {a}'s wounds, healing +{amt}HP."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], a=a["name"], amt=amt))
-                    else:
-                        dmg = max(1, card['atk'] - int(target['def'] * 0.5))
-                        target['hp'] -= dmg
-                        phrases = [
-                            "{card} had no one to heal, so attacked {target} instead (-{dmg}HP).",
-                            "{card} swung their staff at {target} (-{dmg}HP).",
-                            "{card} hit {target} out of frustration (-{dmg}HP)."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role == "radiant healer":
-                    injured = [a for a in allies if 0 < a['hp'] < a['max_hp'] and a != card]
-                    if injured:
-                        a = random.choice(injured)
-                        amt = int(a['max_hp'] * 0.4 + card['int'] * 0.2)
-                        a['hp'] = min(a['hp'] + amt, a['max_hp'])
-                        phrases = [
-                            "{card} bathed {a} in radiant light, healing +{amt}HP.",
-                            "{card} summoned healing radiance over {a} (+{amt}HP).",
-                            "{card} shone a wave of light upon {a}, restoring +{amt}HP."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], a=a["name"], amt=amt))
-                    else:
-                        dmg = max(1, card['atk'] - int(target['def'] * 0.5))
-                        target['hp'] -= dmg
-                        phrases = [
-                            "{card} emitted a flash and struck {target} (-{dmg}HP).",
-                            "{card} lashed out with divine fury at {target} (-{dmg}HP).",
-                            "{card} attacked {target} when no one else needed healing (-{dmg}HP)."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role in ["aura", "aura sparkling", "noble aura"]:
-                    buffed = False
-                    for a in allies:
-                        if a is card:
-                            continue
-                        if role == "aura":
-                            a['atk'] += 1
-                        elif role == "aura sparkling":
-                            a['atk'] += 2
-                        elif role == "noble aura":
-                            a['atk'] += 2
-                            a['def'] += 2
-                        buffed = True
-                    if buffed:
-                        phrases = [
-                            "{card} inspired the team, boosting their strength.",
-                            "{card} empowered allies with radiant energy.",
-                            "{card} radiated power across the battlefield."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"]))
-                    else:
-                        dmg = max(1, card['atk'] - int(target['def'] * 0.5))
-                        target['hp'] -= dmg
-                        phrases = [
-                            "{card} had no one to empower and struck {target} (-{dmg}HP).",
-                            "{card} surged forward and hit {target} (-{dmg}HP).",
-                            "{card} unleashed raw power on {target} (-{dmg}HP)."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                # --- Offensive & Defensive Roles ---
-                if role == "tank":
-                    dmg = max(1, card['atk'] - int(target['def'] * 0.5))
-                    target['hp'] -= dmg
-                    phrases = [
-                        "{card} absorbed the blow and countered {target} (-{dmg}HP).",
-                        "{card} shielded the team and hit {target} (-{dmg}HP).",
-                        "{card} resisted then struck back at {target} (-{dmg}HP)."
-                    ]
-                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role == "deflector":
-                    base, resist = card["atk"], target["def"]
-                    dmg = max(1, int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1))
-                    if random.random() < 0.2:
-                        reflect = int(dmg * 0.5)
-                        card['hp'] -= reflect
-                        phrases = [
-                            "{card} deflected and took {reflect} damage.",
-                            "{card} channeled attack back but got {reflect} damage.",
-                            "{card} partially reflected but was hurt ({reflect}HP)."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], reflect=reflect))
-                    else:
-                        target['hp'] -= dmg
-                        phrases = [
-                            "{card} countered precisely, hitting {target} (-{dmg}HP).",
-                            "{card} spun and struck {target} (-{dmg}HP).",
-                            "{card} punished {target} for their lapse (-{dmg}HP)."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role == "slayer":
-                    base, resist = card["atk"], target["def"]
-                    dmg = max(1, int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1))
-                    target['hp'] -= dmg
-                    phrases = [
-                        "{card} delivered an unyielding blow to {target} (-{dmg}HP).",
-                        "{card} ruthlessly charged at {target} (-{dmg}HP).",
-                        "{card} struck decisively at {target} (-{dmg}HP)."
-                    ]
-                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role == "berserker":
-                    base, resist = card["atk"], target["def"]
-                    dmg = max(1, int((base ** 1.1) / (resist * 0.5 + 2)) * 6 // 5 + random.randint(-1, 1))
-                    target['hp'] -= dmg
-                    phrases = [
-                        "{card} went berserk and smashed {target} (-{dmg}HP).",
-                        "{card} roared fury and hit {target} (-{dmg}HP).",
-                        "{card} unleashed full rage at {target} (-{dmg}HP)."
-                    ]
-                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role == "duelist":
-                    base, resist = card["atk"], target["def"]
-                    dmg = max(1, int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1))
-                    critical = random.random() < 0.3
-                    if critical:
-                        dmg *= 2
-                        phrases = [
-                            "{card} landed a critical strike on {target} (-{dmg}HP)!",
-                            "{card} found a weak spot in {target} and doubled the damage (-{dmg}HP)!",
-                            "{card} exploited an opening for a lethal blow (-{dmg}HP)!"
-                        ]
-                    else:
-                        phrases = [
-                            "{card} dueled and struck {target} (-{dmg}HP).",
-                            "{card} parried and hit {target} (-{dmg}HP).",
-                            "{card} landed a precise blow on {target} (-{dmg}HP)."
-                        ]
-                    target['hp'] -= dmg
-                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role == "avenger":
-                    deaths = sum(1 for a in allies if a['hp'] <= 0)
-                    base = card["atk"] + deaths * 2
-                    resist = target["def"]
-                    dmg = max(1, int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1))
-                    target['hp'] -= dmg
-                    phrases = [
-                        "{card} avenged fallen allies on {target} (-{dmg}HP).",
-                        "{card} unleashed pent-up rage at {target} (-{dmg}HP).",
-                        "{card} struck {target} in honor of the fallen (-{dmg}HP)."
-                    ]
-                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-                if role == "foresser":
-                    dodge_chance = 0.3 + card['int'] * 0.02
-                    if random.random() < dodge_chance:
-                        phrases = [
-                            "{card} foresaw and dodged {target}'s attack.",
-                            "{card} glimpsed the future and avoided {target}.",
-                            "{card} anticipated {target}'s move and stayed safe."
-                        ]
-                        log.append(random.choice(phrases).format(card=card["name"], target=target["name"]))
-                        continue
-                    base, resist = card["atk"], target["def"]
-                    dmg = max(1, int((base ** 1.1) / (resist * 0.5 + 2)) + random.randint(-1, 1))
-                    target['hp'] -= dmg
-                    phrases = [
-                        "{card} struck {target} with future insight (-{dmg}HP).",
-                        "{card} used vision to hit {target} (-{dmg}HP).",
-                        "{card} foresaw a weak spot and struck {target} (-{dmg}HP)."
-                    ]
-                    log.append(random.choice(phrases).format(card=card["name"], target=target["name"], dmg=dmg))
-                    continue
-
-            current_round += 1
-
-        # If we exit the loop without a winner
-        log.append("⏳ The battle ended in a draw due to time limit.")
-        return "Draw", log
-
-    except Exception as e:
-        log.append(f"❌ Internal error during battle: {e}")
-        return "Draw", log
-
-async def pvp_battle(interaction1, interaction2, team1, team2, rival1, rival2):
-    try:
-        winner, log = simulate_battle(team1, team2)
-    except Exception as e:
-        await interaction1.followup.send(f"❗ Internal error: {str(e)}")
-        await interaction2.followup.send(f"❗ Internal error: {str(e)}")
-        return
-
-    await run_pvp_battle(interaction1, interaction2, log, winner, rival1, rival2)
-
 # /pvp command
 # ---------- Combat Simulation ----------
 
@@ -1650,97 +1392,80 @@ def simulate_battle(e1, e2):
 
 # ---------- PvP Queue & Matching ----------
 
-from discord import Interaction, Message
-import asyncio
-
-pvp_queue: list[dict] = []
-
-@bot.tree.command(name="pvp", description="Join the queue for PvP battles.")
-async def pvp(interaction: Interaction):
-    user_id = str(interaction.user.id)
-
-    # Validate team
-    team, error = get_user_team(user_id)
+@bot.tree.command(name="pvp", description="Battle against other players.")
+async def pvp(interaction: discord.Interaction):
+    uid = str(interaction.user.id)
+    # 1) comprueba equipo
+    team, error = get_user_team(uid)
     if error:
         return await interaction.response.send_message(error, ephemeral=True)
 
-    # Prevent duplicates
-    if any(ent["user_id"] == user_id for ent in pvp_queue):
-        return await interaction.response.send_message("⏳ You're already in the queue.", ephemeral=True)
+    # 2) envía mensaje público y guarda el objeto Message
+    await interaction.response.send_message(
+        "🔵 Te has unido a la cola. Esperando rival…", ephemeral=False
+    )
+    msg = await interaction.original_response()
 
-    # Defer then send queue message
-    await interaction.response.defer(ephemeral=False)
-    queue_msg = await interaction.followup.send("🔵 You have joined the PvP queue…", ephemeral=False)
-
-    # Enqueue
-    pvp_queue.append({"user_id": user_id, "message": queue_msg})
+    # 3) añade a la cola
+    pvp_queue.append({"user_id": uid, "message": msg})
     print(f"[DEBUG] Queue length is now {len(pvp_queue)}")
 
-    # Try to match
+    # 4) lanza el loop de match
     asyncio.create_task(match_players())
 
 async def match_players():
-    print(f"[DEBUG] match_players called: queue size = {len(pvp_queue)}")
+    # Mientras haya al menos 2 en cola
     while len(pvp_queue) >= 2:
-        p1 = pvp_queue.pop(0)
-        p2 = pvp_queue.pop(0)
-        uid1, msg1 = p1["user_id"], p1["message"]
-        uid2, msg2 = p2["user_id"], p2["message"]
+        player1 = pvp_queue.pop(0)
+        player2 = pvp_queue.pop(0)
+
+        uid1, msg1 = player1["user_id"], player1["message"]
+        uid2, msg2 = player2["user_id"], player2["message"]
 
         user1 = await bot.fetch_user(int(uid1))
         user2 = await bot.fetch_user(int(uid2))
 
-        # Announce match
-        await msg1.edit(content=f"⚔️ You are facing **{user2.display_name}**!")
-        await msg2.edit(content=f"⚔️ You are facing **{user1.display_name}**!")
-        print(f"[DEBUG] Matched {uid1} vs {uid2}, starting battle…")
+        # Anunciar rival
+        await msg1.edit(content=f"⚔️ Te enfrentas a **{user2.display_name}**!")
+        await msg2.edit(content=f"⚔️ Te enfrentas a **{user1.display_name}**!")
+        print(f"[DEBUG] Matched {uid1} vs {uid2}, iniciando batalla…")
 
-        # Narrate
+        # Corre la simulación en paralelo
         asyncio.create_task(run_pvp_battle(msg1, msg2, uid1, uid2))
 
-async def run_pvp_battle(msg1, msg2, team1, team2, user1, user2):
-    # Simulación
-    winner, log = simulate_battle(team1, team2)
+async def run_pvp_battle(msg1: discord.Message, msg2: discord.Message, uid1: str, uid2: str):
+    # 1) recupera equipos
+    team1, _ = get_user_team(uid1)
+    team2, _ = get_user_team(uid2)
 
-    title = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
-    # Envío mensaje inicial
-    await msg1.edit(content=title + "🏁 The battle has begun!")
-    await msg2.edit(content=title + "🏁 The battle has begun!")
+    # 2) simula
+    winner, log = await asyncio.get_running_loop().run_in_executor(
+        None, simulate_battle, team1, team2
+    )
 
-    # Narración por eventos
+    # 3) narración paso a paso
+    title1 = f"⚔️ {msg1.author.display_name} vs {msg2.author.display_name}\n\n"
+    title2 = title1
+    # mensaje inicial
+    await msg1.edit(content=title1 + "🏁 La batalla ha comenzado!")
+    await msg2.edit(content=title2 + "🏁 La batalla ha comenzado!")
+
     for event in log:
-        await asyncio.sleep(5)  # espera un poco más para no pisar rate limits
-        content = title + event
-        for msg in (msg1, msg2):
-            for attempt in range(3):
-                try:
-                    await msg.edit(content=content)
-                    break
-                except HTTPException as e:
-                    if e.status == 429:
-                        # si Discord devuelve retry-after en headers, úsalo; si no, 5s
-                        retry = float(e.response.headers.get("retry-after", 5))
-                        await asyncio.sleep(retry)
-                    else:
-                        # otro error, abortamos edición
-                        break
+        await asyncio.sleep(3)
+        await msg1.edit(content=title1 + event)
+        await msg2.edit(content=title2 + event)
 
-    # Ronda final y anuncio de ganador
-    await asyncio.sleep(5)
+    # 4) resultado final
+    await asyncio.sleep(2)
     if winner == "Team 1":
-        result = f"🏆 {user1.display_name} wins the duel!"
-    elif winner == "Team 2":
-        result = f"🏆 {user2.display_name} wins the duel!"
+        res1 = f"🏆 ¡{msg1.author.display_name} ha ganado!"
+        res2 = f"🏆 ¡{msg1.author.display_name} ha ganado!"
     else:
-        result = "🤝 The duel ended in a draw!"
+        res1 = f"🏆 ¡{msg2.author.display_name} ha ganado!"
+        res2 = f"🏆 ¡{msg2.author.display_name} ha ganado!"
 
-    # Intentamos editar de nuevo, pero si falla, al menos termina el método
-    try:
-        await msg1.edit(content=title + result)
-        await msg2.edit(content=title + result)
-    except HTTPException:
-        pass
-
+    await msg1.edit(content=title1 + res1)
+    await msg2.edit(content=title2 + res2)
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
     print(f"[DEBUG] Getting team of {uid}")
