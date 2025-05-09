@@ -31,6 +31,9 @@ shop_packs = db_collections["shop_packs"]
 user_packs = db_collections["user_packs"]
 user_formations = db_collections["user_formations"]
 user_teams = db_collections["user_teams"]
+pvp_queue = db_collections["pvp_queue"]
+
+pvp_queue.create_index("timestamp", expireAfterSeconds=180)
 
 def color_by_rank(rank):
     colors = {
@@ -186,6 +189,7 @@ bot = commands.Bot(command_prefix="!", intents=intents, application_id=APP_ID)
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
+    bot.loop.create_task(pvp_matchmaker())
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
@@ -1389,49 +1393,64 @@ def simulate_battle(e1, e2):
         log.append(f"❌ Internal error during battle: {e}")
         return "Draw", log
 
-
-# ---------- PvP Queue & Matching ----------
-
+# 2) /pvp command now enqueues to Mongo, not in‑memory list
 @bot.tree.command(name="pvp", description="Battle against other players.")
 async def pvp(interaction: discord.Interaction):
-    uid = str(interaction.user.id)
-    # 1) comprueba equipo
-    team, error = get_user_team(uid)
+    user_id = str(interaction.user.id)
+    team, error = get_user_team(user_id)
     if error:
         return await interaction.response.send_message(error, ephemeral=True)
 
-    # 2) envía mensaje público y guarda el objeto Message
+    # Send public “joined queue” message
     await interaction.response.send_message(
-        "🔵 Te has unido a la cola. Esperando rival…", ephemeral=False
+        "🔵 You’ve joined the queue. Waiting for an opponent…",
+        ephemeral=False
     )
     msg = await interaction.original_response()
 
-    # 3) añade a la cola
-    pvp_queue.append({"user_id": uid, "message": msg})
-    print(f"[DEBUG] Queue length is now {len(pvp_queue)}")
+    # Insert into MongoDB
+    pvp_queue.insert_one({
+        "discordID": user_id,
+        "channel_id": msg.channel.id,
+        "message_id": msg.id,
+        "timestamp": datetime.utcnow()
+    })
+    print(f"[DEBUG] Queue size in DB: {pvp_queue.count_documents({})}")
 
-    # 4) lanza el loop de match
-    asyncio.create_task(match_players())
+# 3) New matchmaker task (replaces match_players)
+async def pvp_matchmaker():
+    await bot.wait_until_ready()
+    while True:
+        # Grab the two oldest enqueued players
+        docs = list(pvp_queue.find()
+                    .sort("timestamp", 1)
+                    .limit(2))
+        if len(docs) == 2:
+            # Remove them from the queue
+            ids = [d["_id"] for d in docs]
+            pvp_queue.delete_many({"_id": {"$in": ids}})
 
-async def match_players():
-    # Mientras haya al menos 2 en cola
-    while len(pvp_queue) >= 2:
-        player1 = pvp_queue.pop(0)
-        player2 = pvp_queue.pop(0)
+            # Fetch their original messages
+            chan1 = bot.get_channel(docs[0]["channel_id"])
+            msg1  = await chan1.fetch_message(docs[0]["message_id"])
+            chan2 = bot.get_channel(docs[1]["channel_id"])
+            msg2  = await chan2.fetch_message(docs[1]["message_id"])
 
-        uid1, msg1 = player1["user_id"], player1["message"]
-        uid2, msg2 = player2["user_id"], player2["message"]
+            # Fetch their display names
+            user1 = await bot.fetch_user(int(docs[0]["discordID"]))
+            user2 = await bot.fetch_user(int(docs[1]["discordID"]))
 
-        user1 = await bot.fetch_user(int(uid1))
-        user2 = await bot.fetch_user(int(uid2))
+            # Announce match
+            await msg1.edit(content=f"⚔️ You are facing **{user2.display_name}**!")
+            await msg2.edit(content=f"⚔️ You are facing **{user1.display_name}**!")
+            print(f"[DEBUG] Matched {docs[0]['discordID']} vs {docs[1]['discordID']} — starting battle…")
 
-        # Anunciar rival
-        await msg1.edit(content=f"⚔️ Te enfrentas a **{user2.display_name}**!")
-        await msg2.edit(content=f"⚔️ Te enfrentas a **{user1.display_name}**!")
-        print(f"[DEBUG] Matched {uid1} vs {uid2}, iniciando batalla…")
+            # Launch battle
+            asyncio.create_task(run_pvp_battle(msg1, msg2,
+                                               docs[0]["discordID"],
+                                               docs[1]["discordID"]))
+        await asyncio.sleep(3)
 
-        # Corre la simulación en paralelo
-        asyncio.create_task(run_pvp_battle(msg1, msg2, uid1, uid2))
 
 async def run_pvp_battle(msg1, msg2, uid1, uid2):
     # Recuperar equipos
