@@ -194,8 +194,6 @@ async def on_ready():
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
 
-pvp_queue: list[dict] = []
-
 @bot.tree.command(name="start", description="Start your adventure!")
 async def start(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
