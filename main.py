@@ -1488,6 +1488,7 @@ async def run_pvp_battle(msg1, msg2, uid1, uid2):
 def get_user_team(uid: str):
     print(f"[DEBUG] Getting team of {uid}")
 
+    # 1) Recuperar la formación y el equipo almacenado
     frm = user_formations.find_one({"discordID": uid})
     tdoc = user_teams.find_one({"discordID": uid})
 
@@ -1497,39 +1498,29 @@ def get_user_team(uid: str):
     if not frm or not tdoc:
         return None, "❌ You don't have a team formed yet."
 
-    raw = tdoc.get("team")
-    if not raw:
-        return None, "❌ You have no cards in your team."
+    raw = tdoc.get("team") or []
+    # 2) Comprobar que el número de slots coincide con la formación escogida
+    if len(raw) != len(frm["formation"]):
+        return None, "❌ Your team doesn't match your chosen formation. Please reassign all slots."
 
-    if any(cid is None or cid == "" for cid in raw):
-        return None, "❗ You can't play: there's an empty slot in your team."
+    # 3) Verificar que no haya slots vacíos
+    if any(cid in (None, "") for cid in raw):
+        return None, "❗ You can't play: there's at least one empty slot in your team."
+
+    # 4) Cargar todas las cartas del usuario de una vez
+    user_doc = user_cards.find_one({"discordID": uid}) or {}
+    owned = {str(c["card_id"]): c for c in user_doc.get("cards", [])}
 
     team = []
-
+    # 5) Para cada slot, buscar la carta y la definición base
     for cid in raw:
-        try:
-            cid_val = int(cid)
-        except (ValueError, TypeError):
-            cid_val = cid
+        inst = owned.get(str(cid))
+        if not inst:
+            return None, f"❌ Couldn’t find your card with ID {cid}. Please reassign your team."
 
-        print(f"[DEBUG] CID: {cid_val}")
-
-        inst = user_cards.find_one({"discordID": uid, "cards.card_id": cid_val}, {"cards.$": 1})
-        print(f"[DEBUG] INSTANCE IN user_cards: {inst}")
-
-        if not inst or not inst.get("cards"):
-            print(f"[DEBUG] ❌ No card found with that ID {cid_val}")
-            continue
-
-        core_id = inst["cards"][0].get("core_id")
-        print(f"[DEBUG] core_id found: {core_id}")
-
-        core = core_cards.find_one({"id": core_id})
-        print(f"[DEBUG] Base card found: {core}")
-
+        core = core_cards.find_one({"id": inst["core_id"]})
         if not core:
-            print(f"[DEBUG] ❌ No base card found with that ID {core_id}")
-            continue
+            return None, f"❌ Base card {inst['core_id']} not found in database."
 
         team.append({
             "name":   core["name"],
@@ -1543,10 +1534,6 @@ def get_user_team(uid: str):
         })
 
     print(f"[DEBUG] FINAL TEAM ASSEMBLED: {team}")
-
-    if not team:
-        return None, "⚠️ Failed to assemble your team.."
-
     return team, None
 
 
