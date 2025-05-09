@@ -1433,39 +1433,40 @@ async def match_players():
         # Corre la simulación en paralelo
         asyncio.create_task(run_pvp_battle(msg1, msg2, uid1, uid2))
 
-async def run_pvp_battle(msg1: discord.Message, msg2: discord.Message, uid1: str, uid2: str):
-    # 1) recupera equipos
+async def run_pvp_battle(msg1, msg2, uid1, uid2):
+    # Recuperar equipos
     team1, _ = get_user_team(uid1)
     team2, _ = get_user_team(uid2)
 
-    # 2) simula
+    # Obtener nombres
+    user1 = await bot.fetch_user(int(uid1))
+    user2 = await bot.fetch_user(int(uid2))
+
+    # Simular batalla
     winner, log = await asyncio.get_running_loop().run_in_executor(
         None, simulate_battle, team1, team2
     )
 
-    # 3) narración paso a paso
-    title1 = f"⚔️ {msg1.author.display_name} vs {msg2.author.display_name}\n\n"
-    title2 = title1
-    # mensaje inicial
-    await msg1.edit(content=title1 + "🏁 La batalla ha comenzado!")
-    await msg2.edit(content=title2 + "🏁 La batalla ha comenzado!")
+    # Iniciar mensajes
+    title = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
+    await msg1.edit(content=title + "🏁 The battle has begun!")
+    await msg2.edit(content=title + "🏁 The battle has begun!")
 
+    # Narración
     for event in log:
         await asyncio.sleep(3)
-        await msg1.edit(content=title1 + event)
-        await msg2.edit(content=title2 + event)
+        await msg1.edit(content=title + event)
+        await msg2.edit(content=title + event)
 
-    # 4) resultado final
     await asyncio.sleep(2)
     if winner == "Team 1":
-        res1 = f"🏆 ¡{msg1.author.display_name} ha ganado!"
-        res2 = f"🏆 ¡{msg1.author.display_name} ha ganado!"
+        result = f"🏆 **{user1.display_name}** wins!"
     else:
-        res1 = f"🏆 ¡{msg2.author.display_name} ha ganado!"
-        res2 = f"🏆 ¡{msg2.author.display_name} ha ganado!"
+        result = f"🏆 **{user2.display_name}** wins!"
 
-    await msg1.edit(content=title1 + res1)
-    await msg2.edit(content=title2 + res2)
+    await msg1.edit(content=title + result)
+    await msg2.edit(content=title + result)
+
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
     print(f"[DEBUG] Getting team of {uid}")
