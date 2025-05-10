@@ -1401,6 +1401,7 @@ async def pvp_matchmaker():
     while True:
         # Take oldest two queued users
         docs = list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
+        print(f"[DEBUG] Cola Mongo contiene {len(docs)} jugadores")
         if len(docs) == 2:
             # Remove them from queue
             ids = [d['_id'] for d in docs]
@@ -1443,7 +1444,7 @@ async def pvp_matchmaker():
         await asyncio.sleep(1)
 
 @bot.tree.command(name="pvp", description="Queue for a PvP duel")
-async def cmd_pvp(interaction: discord.Interaction):
+async def pvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
     team, err = get_user_team(uid)
     if err:
@@ -1457,6 +1458,7 @@ async def cmd_pvp(interaction: discord.Interaction):
         "message_id": msg.id,
         "createdAt": datetime.utcnow()
     })
+    print(f"[DEBUG] Insertado en cola: {interaction.user.id}")
 
 
 # --- Battle Simulation ---
