@@ -1399,72 +1399,94 @@ def simulate_battle(e1, e2):
 async def pvp_matchmaker():
     await bot.wait_until_ready()
     while True:
-        # Take oldest two queued users
-        docs = list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
-        print(f"[DEBUG] Cola Mongo contiene {len(docs)} jugadores")
-        if len(docs) == 2:
-            # Remove them from queue
-            ids = [d['_id'] for d in docs]
-            pvp_queue.delete_many({"_id": {"$in": ids}})
+        try:
+            docs = list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
+            print(f"[MATCHMAKER] Queue length: {len(docs)}")
 
-            p1, p2 = docs
-            uid1, uid2 = p1['user_id'], p2['user_id']
-            # Fetch users and messages
-            user1 = await bot.fetch_user(int(uid1))
-            user2 = await bot.fetch_user(int(uid2))
-            chan1 = bot.get_channel(p1['channel_id'])
-            chan2 = bot.get_channel(p2['channel_id'])
-            msg1 = await chan1.fetch_message(p1['message_id'])
-            msg2 = await chan2.fetch_message(p2['message_id'])
+            if len(docs) == 2:
+                # Saca los usuarios de la cola
+                ids = [d["_id"] for d in docs]
+                pvp_queue.delete_many({"_id": {"$in": ids}})
+                print(f"[MATCHMAKER] Removed IDs from queue: {ids}")
 
-            header = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
-            await msg1.edit(content=header + "🏁 The duel begins!")
-            await msg2.edit(content=header + "🏁 The duel begins!")
+                p1, p2 = docs
+                uid1, uid2 = p1["user_id"], p2["user_id"]
+                print(f"[MATCHMAKER] Matched {uid1} vs {uid2}")
 
-            # Assemble teams
-            team1, _ = get_user_team(uid1)
-            team2, _ = get_user_team(uid2)
-            # Simulate battle off-thread
-            winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
+                # Obtiene usuarios y canales
+                user1 = await bot.fetch_user(int(uid1))
+                user2 = await bot.fetch_user(int(uid2))
+                chan1 = bot.get_channel(p1["channel_id"])
+                chan2 = bot.get_channel(p2["channel_id"])
+                msg1 = await chan1.fetch_message(p1["message_id"])
+                msg2 = await chan2.fetch_message(p2["message_id"])
 
-            # Narrate
-            for entry in log:
-                await asyncio.sleep(2)
-                await msg1.edit(content=header + entry)
-                await msg2.edit(content=header + entry)
+                header = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
+                await msg1.edit(content=header + "🕐 The duel begins!")
+                await msg2.edit(content=header + "🕐 The duel begins!")
 
-            await asyncio.sleep(1)
-            if winner == "Draw":
-                result = "🤝 The duel ended in a draw!"
-            else:
-                champ = user1.display_name if winner == "Team 1" else user2.display_name
-                result = f"🏆 **{champ}** wins!"
-            await msg1.edit(content=header + result)
-            await msg2.edit(content=header + result)
+                # Obtiene equipos
+                team1, err1 = get_user_team(uid1)
+                team2, err2 = get_user_team(uid2)
+                if err1 or err2:
+                    error_msg = err1 or err2
+                    print(f"[MATCHMAKER] Error getting teams: {error_msg}")
+                    await msg1.edit(content=header + error_msg)
+                    await msg2.edit(content=header + error_msg)
+                    continue
+                print(f"[MATCHMAKER] Team1: {team1}")
+                print(f"[MATCHMAKER] Team2: {team2}")
+
+                # Simula batalla
+                winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
+                print(f"[MATCHMAKER] Winner: {winner}")
+
+                for entry in log:
+                    await asyncio.sleep(1)
+                    await msg1.edit(content=header + entry)
+                    await msg2.edit(content=header + entry)
+
+                await asyncio.sleep(1)
+                result = (
+                    "🤝 The duel ended in a draw!"
+                    if winner == "Draw" else
+                    f"🏆 **{user1.display_name if winner == 'Team 1' else user2.display_name}** wins!"
+                )
+                await msg1.edit(content=header + result)
+                await msg2.edit(content=header + result)
+
+        except Exception as e:
+            print(f"[MATCHMAKER] ERROR: {e}")
         await asyncio.sleep(1)
 
-@bot.tree.command(name="pvp", description="Queue for a PvP duel")
-async def cmd_pvp(interaction: discord.Interaction):
-    uid, err = str(interaction.user.id), None
+@bot.tree.command(name="pvpdebug", description="Queue PvP (debug mode)")
+async def pvpdebug(interaction: discord.Interaction):
+    uid = str(interaction.user.id)
+    print(f"[DEBUG] /pvpdebug invoked by {uid}")
+
+    # 1. Verifica equipo
     team, err = get_user_team(uid)
     if err:
+        print(f"[ERROR] No team for {uid}: {err}")
         return await interaction.response.send_message(err, ephemeral=True)
+    print(f"[DEBUG] Team for {uid}: {team}")
 
-    # Mensaje público de confirmación
-    await interaction.response.send_message(
-        "🔵 You’ve joined the queue…", ephemeral=False
-    )
+    # 2. Respuesta al jugador
+    await interaction.response.send_message("🌀 You entered debug PvP queue...", ephemeral=False)
     msg = await interaction.original_response()
 
-    # Inserta en Mongo
-    result = pvp_queue.insert_one({
-        "user_id":    uid,
+    # 3. Inserta en Mongo
+    insert_result = pvp_queue.insert_one({
+        "user_id": uid,
         "channel_id": msg.channel.id,
         "message_id": msg.id,
-        "createdAt":  datetime.utcnow()
+        "createdAt": datetime.utcnow()
     })
-    print(f"[DEBUG] Inserted in pvp_queue with _id = {result.inserted_id}")
-    print(f"[DEBUG] Total docs in queue: {pvp_queue.count_documents({})}")
+    print(f"[DEBUG] Inserted to queue: {insert_result.inserted_id}")
+
+    # 4. Cuenta documentos
+    queue_count = pvp_queue.count_documents({})
+    print(f"[DEBUG] Queue now contains {queue_count} entries")
 
 
 # --- Battle Simulation ---
