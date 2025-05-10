@@ -15,6 +15,8 @@ import copy
 import logging
 import traceback
 from discord.errors import HTTPException
+from pymongo import ASCENDING
+
 
 # at top of your bot file
 logger = logging.getLogger("discord")
@@ -34,6 +36,7 @@ user_teams = db_collections["user_teams"]
 pvp_queue = db_collections["pvp_queue"]
 
 pvp_queue.create_index("timestamp", expireAfterSeconds=180)
+pvp_queue.create_index([('createdAt', ASCENDING)])
 
 def color_by_rank(rank):
     colors = {
@@ -1140,7 +1143,7 @@ async def remove(interaction: discord.Interaction, slot: int):
 # /pvp command
 # ---------- Combat Simulation ----------
 
-def simulate_battle(e1, e2):
+def simulate_battle(e1: list[dict], e2: list[dict]) -> tuple[str, list[str]]:
     """
     Simulate a combat between two teams e1 and e2.
     Returns (winner, log) where winner is "Team 1", "Team 2" or "Draw".
@@ -1392,62 +1395,69 @@ def simulate_battle(e1, e2):
         return "Draw", log
 
 # 2) /pvp command now enqueues to Mongo, not in‑memory list
-@bot.tree.command(name="pvp", description="Battle against other players.")
+@bot.tree.command(name="pvp", description="Queue for a PvP duel")
 async def pvp(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
-    team, error = get_user_team(user_id)
-    if error:
-        return await interaction.response.send_message(error, ephemeral=True)
 
-    # Send public “joined queue” message
+    team, err = get_user_team(user_id)
+    if err:
+        return await interaction.response.send_message(err, ephemeral=True)
+
     await interaction.response.send_message(
         "🔵 You’ve joined the queue. Waiting for an opponent…",
         ephemeral=False
     )
-    msg = await interaction.original_response()
+    original = await interaction.original_response()
 
-    # Insert into MongoDB
     pvp_queue.insert_one({
-        "discordID": user_id,
-        "channel_id": msg.channel.id,
-        "message_id": msg.id,
-        "timestamp": datetime.utcnow()
+        "user_id": user_id,
+        "channel_id": original.channel.id,
+        "message_id": original.id,
+        "createdAt": datetime.utcnow()
     })
-    print(f"[DEBUG] Queue size in DB: {pvp_queue.count_documents({})}")
+
 
 # 3) New matchmaker task (replaces match_players)
 async def pvp_matchmaker():
     await bot.wait_until_ready()
     while True:
-        # Grab the two oldest enqueued players
-        docs = list(pvp_queue.find()
-                    .sort("timestamp", 1)
-                    .limit(2))
+        docs = list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
         if len(docs) == 2:
-            # Remove them from the queue
             ids = [d["_id"] for d in docs]
             pvp_queue.delete_many({"_id": {"$in": ids}})
 
-            # Fetch their original messages
-            chan1 = bot.get_channel(docs[0]["channel_id"])
-            msg1  = await chan1.fetch_message(docs[0]["message_id"])
-            chan2 = bot.get_channel(docs[1]["channel_id"])
-            msg2  = await chan2.fetch_message(docs[1]["message_id"])
+            p1, p2 = docs
+            uid1, uid2 = p1["user_id"], p2["user_id"]
 
-            # Fetch their display names
-            user1 = await bot.fetch_user(int(docs[0]["discordID"]))
-            user2 = await bot.fetch_user(int(docs[1]["discordID"]))
+            user1 = await bot.fetch_user(int(uid1))
+            user2 = await bot.fetch_user(int(uid2))
 
-            # Announce match
-            await msg1.edit(content=f"⚔️ You are facing **{user2.display_name}**!")
-            await msg2.edit(content=f"⚔️ You are facing **{user1.display_name}**!")
-            print(f"[DEBUG] Matched {docs[0]['discordID']} vs {docs[1]['discordID']} — starting battle…")
+            chan1 = bot.get_channel(p1["channel_id"])
+            chan2 = bot.get_channel(p2["channel_id"])
+            msg1 = await chan1.fetch_message(p1["message_id"])
+            msg2 = await chan2.fetch_message(p2["message_id"])
 
-            # Launch battle
-            asyncio.create_task(run_pvp_battle(msg1, msg2,
-                                               docs[0]["discordID"],
-                                               docs[1]["discordID"]))
-        await asyncio.sleep(3)
+            header = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
+            await msg1.edit(content=header + "🏁 The duel begins!")
+            await msg2.edit(content=header + "🏁 The duel begins!")
+
+            winner, log = await asyncio.to_thread(simulate_battle, *map(lambda d: get_user_team(d['user_id'])[0], (p1, p2)))
+
+            for entry in log:
+                await asyncio.sleep(2)
+                await msg1.edit(content=header + entry)
+                await msg2.edit(content=header + entry)
+
+            await asyncio.sleep(1)
+            if winner.lower() == "draw":
+                result = "🤝 The duel ended in a draw!"
+            else:
+                champ = user1.display_name if winner == "Team 1" else user2.display_name
+                result = f"🏆 **{champ}** wins the duel!"
+            await msg1.edit(content=header + result)
+            await msg2.edit(content=header + result)
+
+        await asyncio.sleep(1)
 
 
 async def run_pvp_battle(msg1, msg2, uid1, uid2):
@@ -1487,50 +1497,26 @@ async def run_pvp_battle(msg1, msg2, uid1, uid2):
 # ——— Función para cargar el equipo del usuario ———
 def get_user_team(uid: str):
     print(f"[DEBUG] Getting team of {uid}")
-
     frm = user_formations.find_one({"discordID": uid})
     tdoc = user_teams.find_one({"discordID": uid})
-
-    print(f"[DEBUG] FORMATION: {frm}")
-    print(f"[DEBUG] TEAM DOC: {tdoc}")
-
     if not frm or not tdoc:
         return None, "❌ You don't have a team formed yet."
-
-    raw = tdoc.get("team")
-    if not raw:
-        return None, "❌ You have no cards in your team."
-
+    raw = tdoc.get("team", [])
     if any(cid is None or cid == "" for cid in raw):
         return None, "❗ You can't play: there's an empty slot in your team."
-
     team = []
-
     for cid in raw:
         try:
             cid_val = int(cid)
         except (ValueError, TypeError):
             cid_val = cid
-
-        print(f"[DEBUG] CID: {cid_val}")
-
         inst = user_cards.find_one({"discordID": uid, "cards.card_id": cid_val}, {"cards.$": 1})
-        print(f"[DEBUG] INSTANCE IN user_cards: {inst}")
-
         if not inst or not inst.get("cards"):
-            print(f"[DEBUG] ❌ No card found with that ID {cid_val}")
             continue
-
         core_id = inst["cards"][0].get("core_id")
-        print(f"[DEBUG] core_id found: {core_id}")
-
         core = core_cards.find_one({"id": core_id})
-        print(f"[DEBUG] Base card found: {core}")
-
         if not core:
-            print(f"[DEBUG] ❌ No base card found with that ID {core_id}")
             continue
-
         team.append({
             "name":   core["name"],
             "role":   core["role"].lower(),
@@ -1541,60 +1527,35 @@ def get_user_team(uid: str):
             "hp":     core["stats"]["hp"],
             "max_hp": core["stats"]["hp"],
         })
-
-    print(f"[DEBUG] FINAL TEAM ASSEMBLED: {team}")
-
     if not team:
-        return None, "⚠️ Failed to assemble your team.."
-
+        return None, "⚠️ Failed to assemble your team."
+    print(f"[DEBUG] FINAL TEAM ASSEMBLED: {team}")
     return team, None
 
 
-@bot.tree.command(name="duel", description="Simulate a duel against a friend's team.")
-@app_commands.describe(opponent="The user whose team you want to challenge")
+@bot.tree.command(name="duel", description="Start a duel against another player")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
-    uid1 = str(interaction.user.id)
-    uid2 = str(opponent.id)
-
-    # Validar equipos
-    team1, error1 = get_user_team(uid1)
-    if error1:
-        return await interaction.response.send_message(error1, ephemeral=True)
-    team2, error2 = get_user_team(uid2)
-    if error2:
-        return await interaction.response.send_message(error2, ephemeral=True)
-
-    title = f"⚔️ {interaction.user.display_name} vs {opponent.display_name}\n\n"
-
-    # Defer público
+    uid1, uid2 = str(interaction.user.id), str(opponent.id)
+    if uid1 == uid2:
+        return await interaction.response.send_message("❌ You can't duel yourself!", ephemeral=True)
     await interaction.response.defer(ephemeral=False)
-
-    # Enviar mensaje inicial visible para todos
-    duel_msg = await interaction.followup.send(content=title + "🏁 The duel has begun!", ephemeral=False)
-
-    # Ejecutar simulación
-    loop = asyncio.get_running_loop()
-    try:
-        winner, log = await loop.run_in_executor(None, simulate_battle, team1, team2)
-    except Exception as e:
-        logging.error(f"[ERROR] Duel simulation failed: {e}")
-        return await duel_msg.edit(content="❗ An internal error occurred during the duel.")
-
-    # Narración paso a paso
-    for event in log:
-        await asyncio.sleep(3)
-        await duel_msg.edit(content=title + event)
-
-    # Resultado final
-    await asyncio.sleep(2)
-    if winner == "Team 1":
-        result = f"🏆 {interaction.user.display_name} wins the duel!"
-    elif winner == "Team 2":
-        result = f"🏆 {opponent.display_name} wins the duel!"
-    else:
+    team1, err1 = get_user_team(uid1)
+    if err1: return await interaction.followup.send(f"⚠️ {err1}", ephemeral=False)
+    team2, err2 = get_user_team(uid2)
+    if err2: return await interaction.followup.send(f"⚠️ {err2}", ephemeral=False)
+    title = f"⚔️ **{interaction.user.display_name}** vs **{opponent.display_name}**\n\n"
+    msg = await interaction.followup.send(title + "🏁 The duel begins!", ephemeral=False)
+    winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
+    for entry in log:
+        await asyncio.sleep(2)
+        await msg.edit(content=title + entry)
+    await asyncio.sleep(1)
+    if winner=="Draw":
         result = "🤝 The duel ended in a draw!"
-
-    await duel_msg.edit(content=title + result)
+    else:
+        champ = interaction.user.display_name if winner=="Team 1" else opponent.display_name
+        result = f"🏆 **{champ}** wins the duel!"
+    await msg.edit(content=title + result)
 
 def run_bot():
     asyncio.run(bot.start(TOKEN))
