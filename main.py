@@ -1143,7 +1143,7 @@ async def remove(interaction: discord.Interaction, slot: int):
 # /pvp command
 # ---------- Combat Simulation ----------
 
-def simulate_battle(e1: list[dict], e2: list[dict]) -> tuple[str, list[str]]:
+def simulate_battle(e1, e2):
     """
     Simulate a combat between two teams e1 and e2.
     Returns (winner, log) where winner is "Team 1", "Team 2" or "Draw".
@@ -1394,144 +1394,100 @@ def simulate_battle(e1: list[dict], e2: list[dict]) -> tuple[str, list[str]]:
         log.append(f"❌ Internal error during battle: {e}")
         return "Draw", log
 
-# 2) /pvp command now enqueues to Mongo, not in‑memory list
-@bot.tree.command(name="pvp", description="Queue for a PvP duel")
-async def pvp(interaction: discord.Interaction):
-    user_id = str(interaction.user.id)
 
-    team, err = get_user_team(user_id)
-    if err:
-        return await interaction.response.send_message(err, ephemeral=True)
-
-    await interaction.response.send_message(
-        "🔵 You’ve joined the queue. Waiting for an opponent…",
-        ephemeral=False
-    )
-    original = await interaction.original_response()
-
-    pvp_queue.insert_one({
-        "user_id": user_id,
-        "channel_id": original.channel.id,
-        "message_id": original.id,
-        "createdAt": datetime.utcnow()
-    })
-
-
-# 3) New matchmaker task (replaces match_players)
+# --- PvP Matching ---
 async def pvp_matchmaker():
     await bot.wait_until_ready()
     while True:
+        # Take oldest two queued users
         docs = list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
         if len(docs) == 2:
-            ids = [d["_id"] for d in docs]
+            # Remove them from queue
+            ids = [d['_id'] for d in docs]
             pvp_queue.delete_many({"_id": {"$in": ids}})
 
             p1, p2 = docs
-            uid1, uid2 = p1["user_id"], p2["user_id"]
-
+            uid1, uid2 = p1['user_id'], p2['user_id']
+            # Fetch users and messages
             user1 = await bot.fetch_user(int(uid1))
             user2 = await bot.fetch_user(int(uid2))
-
-            chan1 = bot.get_channel(p1["channel_id"])
-            chan2 = bot.get_channel(p2["channel_id"])
-            msg1 = await chan1.fetch_message(p1["message_id"])
-            msg2 = await chan2.fetch_message(p2["message_id"])
+            chan1 = bot.get_channel(p1['channel_id'])
+            chan2 = bot.get_channel(p2['channel_id'])
+            msg1 = await chan1.fetch_message(p1['message_id'])
+            msg2 = await chan2.fetch_message(p2['message_id'])
 
             header = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
             await msg1.edit(content=header + "🏁 The duel begins!")
             await msg2.edit(content=header + "🏁 The duel begins!")
 
-            winner, log = await asyncio.to_thread(simulate_battle, *map(lambda d: get_user_team(d['user_id'])[0], (p1, p2)))
+            # Assemble teams
+            team1, _ = get_user_team(uid1)
+            team2, _ = get_user_team(uid2)
+            # Simulate battle off-thread
+            winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
 
+            # Narrate
             for entry in log:
                 await asyncio.sleep(2)
                 await msg1.edit(content=header + entry)
                 await msg2.edit(content=header + entry)
 
             await asyncio.sleep(1)
-            if winner.lower() == "draw":
+            if winner == "Draw":
                 result = "🤝 The duel ended in a draw!"
             else:
                 champ = user1.display_name if winner == "Team 1" else user2.display_name
-                result = f"🏆 **{champ}** wins the duel!"
+                result = f"🏆 **{champ}** wins!"
             await msg1.edit(content=header + result)
             await msg2.edit(content=header + result)
-
         await asyncio.sleep(1)
 
+@bot.tree.command(name="pvp", description="Queue for a PvP duel")
+async def cmd_pvp(interaction: discord.Interaction):
+    uid = str(interaction.user.id)
+    team, err = get_user_team(uid)
+    if err:
+        return await interaction.response.send_message(err, ephemeral=True)
 
-async def run_pvp_battle(msg1, msg2, uid1, uid2):
-    # Recuperar equipos
-    team1, _ = get_user_team(uid1)
-    team2, _ = get_user_team(uid2)
+    await interaction.response.send_message("🔵 You’ve joined the queue. Waiting for an opponent…", ephemeral=False)
+    msg = await interaction.original_response()
+    pvp_queue.insert_one({
+        "user_id": uid,
+        "channel_id": msg.channel.id,
+        "message_id": msg.id,
+        "createdAt": datetime.utcnow()
+    })
 
-    # Obtener nombres
-    user1 = await bot.fetch_user(int(uid1))
-    user2 = await bot.fetch_user(int(uid2))
 
-    # Simular batalla
-    winner, log = await asyncio.get_running_loop().run_in_executor(
-        None, simulate_battle, team1, team2
-    )
-
-    # Iniciar mensajes
-    title = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
-    await msg1.edit(content=title + "🏁 The battle has begun!")
-    await msg2.edit(content=title + "🏁 The battle has begun!")
-
-    # Narración
-    for event in log:
-        await asyncio.sleep(3)
-        await msg1.edit(content=title + event)
-        await msg2.edit(content=title + event)
-
-    await asyncio.sleep(2)
-    if winner == "Team 1":
-        result = f"🏆 **{user1.display_name}** wins!"
-    else:
-        result = f"🏆 **{user2.display_name}** wins!"
-
-    await msg1.edit(content=title + result)
-    await msg2.edit(content=title + result)
-
-# ——— Función para cargar el equipo del usuario ———
+# --- Battle Simulation ---
+# --- Assemble user team ---
 def get_user_team(uid: str):
-    print(f"[DEBUG] Getting team of {uid}")
     frm = user_formations.find_one({"discordID": uid})
     tdoc = user_teams.find_one({"discordID": uid})
     if not frm or not tdoc:
-        return None, "❌ You don't have a team formed yet."
+        return None, "❌ No team formed yet."
     raw = tdoc.get("team", [])
-    if any(cid is None or cid == "" for cid in raw):
-        return None, "❗ You can't play: there's an empty slot in your team."
+    if any(not cid for cid in raw):
+        return None, "❗ Empty slot in your team."
     team = []
     for cid in raw:
-        try:
-            cid_val = int(cid)
-        except (ValueError, TypeError):
-            cid_val = cid
-        inst = user_cards.find_one({"discordID": uid, "cards.card_id": cid_val}, {"cards.$": 1})
-        if not inst or not inst.get("cards"):
-            continue
-        core_id = inst["cards"][0].get("core_id")
-        core = core_cards.find_one({"id": core_id})
-        if not core:
-            continue
+        inst = user_cards.find_one({"discordID": uid, "cards.card_id": int(cid)}, {"cards.$":1})
+        if not inst: continue
+        core = core_cards.find_one({"id": inst['cards'][0]['core_id']})
+        if not core: continue
         team.append({
-            "name":   core["name"],
-            "role":   core["role"].lower(),
-            "atk":    core["stats"]["atk"],
-            "def":    core["stats"]["def"],
-            "vel":    core["stats"]["vel"],
-            "int":    core["stats"]["int"],
-            "hp":     core["stats"]["hp"],
-            "max_hp": core["stats"]["hp"],
+            "name": core['name'],
+            "role": core['role'].lower(),
+            "atk": core['stats']['atk'],
+            "def": core['stats']['def'],
+            "vel": core['stats']['vel'],
+            "int": core['stats']['int'],
+            "hp": core['stats']['hp'],
+            "max_hp": core['stats']['hp']
         })
     if not team:
         return None, "⚠️ Failed to assemble your team."
-    print(f"[DEBUG] FINAL TEAM ASSEMBLED: {team}")
     return team, None
-
 
 @bot.tree.command(name="duel", description="Start a duel against another player")
 async def duel(interaction: discord.Interaction, opponent: discord.User):
