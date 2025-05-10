@@ -1445,20 +1445,27 @@ async def pvp_matchmaker():
 
 @bot.tree.command(name="pvp", description="Queue for a PvP duel")
 async def pvp(interaction: discord.Interaction):
-    uid = str(interaction.user.id)
+    uid, err = str(interaction.user.id), None
     team, err = get_user_team(uid)
     if err:
         return await interaction.response.send_message(err, ephemeral=True)
 
-    await interaction.response.send_message("🔵 You’ve joined the queue. Waiting for an opponent…", ephemeral=False)
+    # Envía la confirmación pública
+    await interaction.response.send_message("🔵 You’ve joined the queue…", ephemeral=False)
     msg = await interaction.original_response()
-    pvp_queue.insert_one({
-        "user_id": uid,
+
+    # Inserción en la colección
+    result = pvp_queue.insert_one({
+        "user_id":    uid,
         "channel_id": msg.channel.id,
         "message_id": msg.id,
-        "createdAt": datetime.utcnow()
+        "createdAt":  datetime.utcnow()
     })
-    print(f"[DEBUG] Insertado en cola: {interaction.user.id}")
+    print(f"[DEBUG] Inserted pvp_queue _id = {result.inserted_id}")
+
+    # Cuenta documentos para verificar
+    total = pvp_queue.count_documents({})
+    print(f"[DEBUG] Documents en cola tras insert: {total}")
 
 
 # --- Battle Simulation ---
