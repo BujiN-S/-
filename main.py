@@ -15,8 +15,6 @@ import copy
 import logging
 import traceback
 from discord.errors import HTTPException
-import pymongo
-from pymongo.errors import DuplicateKeyError
 from pymongo import ASCENDING
 
 
@@ -1462,41 +1460,40 @@ async def pvp_matchmaker():
             traceback.print_exc()
             await asyncio.sleep(5)
 
-
-@bot.tree.command(name="pvp", description="Queue PvP against another player")
-async def pvp(interaction: discord.Interaction):
+@bot.tree.command(name="pvpdebug", description="Queue PvP (debug mode)")
+async def pvpdebug(interaction: discord.Interaction):
     uid = str(interaction.user.id)
+    print(f"[DEBUG] /pvpdebug invoked by {uid}")
 
-    # 1) Verificar que el usuario tenga un equipo completo
+    # 1. Verifica equipo
     team, err = get_user_team(uid)
     if err:
-        return await interaction.response.send_message(f"⚠️ {err}", ephemeral=True)
+        print(f"[ERROR] No team for {uid}: {err}")
+        return await interaction.response.send_message(err, ephemeral=True)
+    print(f"[DEBUG] Team for {uid}: {team}")
 
-    # 2) Informar al usuario que ha entrado en cola
-    await interaction.response.send_message(
-        "🌀 Te has apuntado a la cola de PvP. ¡Esperando oponente...", 
-        ephemeral=False
-    )
+    # 2. Respuesta al jugador
+    await interaction.response.send_message("🌀 You entered debug PvP queue...", ephemeral=False)
     msg = await interaction.original_response()
 
-    # 3) Insertar correctamente en la colección (sin doble insert)
+    # 3. Inserta en Mongo
+    doc = pvp_queue.insert_one({
+        "user_id": uid,
+        "channel_id": msg.channel.id,
+        "message_id": msg.id,
+        "createdAt": datetime.utcnow()
+    })
     try:
-        pvp_queue.insert_one({
-            "_id": uid,                  # Usamos el UID como _id para prevenir duplicados
-            "user_id": uid,
-            "channel_id": msg.channel.id,
-            "message_id": msg.id,
-            "createdAt": datetime.utcnow()
-        })
-    except pymongo.errors.DuplicateKeyError:
-        # Si ya estaba en cola, solo lo notificamos
-        return await interaction.followup.send(
-            "⚠️ Ya estás en la cola de PvP. Por favor espera a ser emparejado.",
-            ephemeral=True
-        )
+        result = pvp_queue.insert_one(doc)
+        print(f"[PVP DEBUG] Inserted into Mongo _id={result.inserted_id}")
+    except Exception as e:
+        print(f"[PVP DEBUG][ERROR] Insert failed: {e}")
+        traceback.print_exc()
+        return
 
-    # (Opcional) Log para debugging
-    print(f"[PVP] {uid} añadido a la cola")
+    # Contamos docs para verificar
+    total = pvp_queue.count_documents({})
+    print(f"[PVP DEBUG] Total docs in queue: {total}")
 
 
 # --- Battle Simulation ---
