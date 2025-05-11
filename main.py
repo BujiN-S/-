@@ -1456,8 +1456,9 @@ async def pvp_matchmaker():
                 await msg2.edit(content=header + result)
 
         except Exception as e:
-            print(f"[MATCHMAKER] ERROR: {e}")
-        await asyncio.sleep(1)
+            print(f"[PVP DEBUG][ERROR] {e}")
+            traceback.print_exc()
+            await asyncio.sleep(5)
 
 @bot.tree.command(name="pvpdebug", description="Queue PvP (debug mode)")
 async def pvpdebug(interaction: discord.Interaction):
@@ -1482,14 +1483,17 @@ async def pvpdebug(interaction: discord.Interaction):
         "message_id": msg.id,
         "createdAt": datetime.utcnow()
     })
-    result = pvp_queue.insert_one(doc)
-    print(f"[DEBUG] Inserted to queue: {result.inserted_id}")
-    total = pvp_queue.count_documents({})
-    print(f"[PVP DEBUG] Queue size now {total}")
+    try:
+        result = pvp_queue.insert_one(doc)
+        print(f"[PVP DEBUG] Inserted into Mongo _id={result.inserted_id}")
+    except Exception as e:
+        print(f"[PVP DEBUG][ERROR] Insert failed: {e}")
+        traceback.print_exc()
+        return
 
-    # 4. Cuenta documentos
-    queue_count = pvp_queue.count_documents({})
-    print(f"[DEBUG] Queue now contains {queue_count} entries")
+    # Contamos docs para verificar
+    total = pvp_queue.count_documents({})
+    print(f"[PVP DEBUG] Total docs in queue: {total}")
 
 
 # --- Battle Simulation ---
