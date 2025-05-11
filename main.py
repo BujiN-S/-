@@ -1476,13 +1476,16 @@ async def pvpdebug(interaction: discord.Interaction):
     msg = await interaction.original_response()
 
     # 3. Inserta en Mongo
-    insert_result = pvp_queue.insert_one({
+    doc = pvp_queue.insert_one({
         "user_id": uid,
         "channel_id": msg.channel.id,
         "message_id": msg.id,
         "createdAt": datetime.utcnow()
     })
-    print(f"[DEBUG] Inserted to queue: {insert_result.inserted_id}")
+    result = pvp_queue.insert_one(doc)
+    print(f"[DEBUG] Inserted to queue: {result.inserted_id}")
+    total = pvp_queue.count_documents({})
+    print(f"[PVP DEBUG] Queue size now {total}")
 
     # 4. Cuenta documentos
     queue_count = pvp_queue.count_documents({})
