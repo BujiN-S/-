@@ -15,6 +15,8 @@ import copy
 import logging
 import traceback
 from discord.errors import HTTPException
+import pymongo
+from pymongo.errors import DuplicateKeyError
 from pymongo import ASCENDING
 
 
