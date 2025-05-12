@@ -194,7 +194,6 @@ bot = commands.Bot(command_prefix="!", intents=intents, application_id=APP_ID)
 @bot.event
 async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
-    bot.loop.create_task(pvp_matchmaker())
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
