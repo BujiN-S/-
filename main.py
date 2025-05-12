@@ -1464,35 +1464,37 @@ async def pvp_matchmaker():
 @bot.tree.command(name="pvp", description="Queue PvP against another player")
 async def pvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
-
-    # 1) Verificar equipo
     team, err = get_user_team(uid)
     if err:
         return await interaction.response.send_message(f"⚠️ {err}", ephemeral=True)
 
-    # 2) Mensaje de cola
     await interaction.response.send_message(
-        "🌀 Te has apuntado a la cola de PvP. ¡Esperando oponente...", 
+        "🌀 Te has apuntado a la cola de PvP. ¡Esperando oponente...",
         ephemeral=False
     )
     msg = await interaction.original_response()
 
-    # 3) Insert en la cola
+    # Datos que vamos a insertar
+    doc = {
+        "_id": uid,
+        "user_id": uid,
+        "channel_id": msg.channel.id,
+        "message_id": msg.id,
+        "createdAt": datetime.utcnow()
+    }
+    print(f"[DEBUG] Intentando insertar en pvp_queue: {doc}")
+
     try:
-        pvp_queue.insert_one({
-            "_id": uid,
-            "user_id": uid,
-            "channel_id": msg.channel.id,
-            "message_id": msg.id,
-            "createdAt": datetime.utcnow()
-        })
-    except DuplicateKeyError:
+        result = pvp_queue.insert_one(doc)
+        print(f"[DEBUG] Insertó correctamente, inserted_id={result.inserted_id}")
+    except Exception as e:
+        # Cualquier excepción aquí
+        print(f"[ERROR] Falló insert_one: {type(e).__name__}: {e}")
+        # Y avisamos al usuario, opcionalmente
         return await interaction.followup.send(
-            "⚠️ Ya estás en la cola de PvP. Por favor espera a ser emparejado.",
+            "❌ Ocurrió un error al apuntarte a la cola de PvP. Revisa logs.",
             ephemeral=True
         )
-
-    print(f"[PVP] {uid} añadido a la cola")
 
 
 # --- Battle Simulation ---
