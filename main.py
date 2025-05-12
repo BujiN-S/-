@@ -1460,40 +1460,38 @@ async def pvp_matchmaker():
             traceback.print_exc()
             await asyncio.sleep(5)
 
-@bot.tree.command(name="pvpdebug", description="Queue PvP (debug mode)")
-async def pvpdebug(interaction: discord.Interaction):
+@bot.tree.command(name="pvp", description="Queue PvP against another player")
+async def pvp(interaction: discord.Interaction):
     uid = str(interaction.user.id)
-    print(f"[DEBUG] /pvpdebug invoked by {uid}")
 
-    # 1. Verifica equipo
+    # 1) Verificar equipo
     team, err = get_user_team(uid)
     if err:
-        print(f"[ERROR] No team for {uid}: {err}")
-        return await interaction.response.send_message(err, ephemeral=True)
-    print(f"[DEBUG] Team for {uid}: {team}")
+        return await interaction.response.send_message(f"⚠️ {err}", ephemeral=True)
 
-    # 2. Respuesta al jugador
-    await interaction.response.send_message("🌀 You entered debug PvP queue...", ephemeral=False)
+    # 2) Mensaje de cola
+    await interaction.response.send_message(
+        "🌀 Te has apuntado a la cola de PvP. ¡Esperando oponente...", 
+        ephemeral=False
+    )
     msg = await interaction.original_response()
 
-    # 3. Inserta en Mongo
-    doc = pvp_queue.insert_one({
-        "user_id": uid,
-        "channel_id": msg.channel.id,
-        "message_id": msg.id,
-        "createdAt": datetime.utcnow()
-    })
+    # 3) Insert en la cola
     try:
-        result = pvp_queue.insert_one(doc)
-        print(f"[PVP DEBUG] Inserted into Mongo _id={result.inserted_id}")
-    except Exception as e:
-        print(f"[PVP DEBUG][ERROR] Insert failed: {e}")
-        traceback.print_exc()
-        return
+        pvp_queue.insert_one({
+            "_id": uid,
+            "user_id": uid,
+            "channel_id": msg.channel.id,
+            "message_id": msg.id,
+            "createdAt": datetime.utcnow()
+        })
+    except DuplicateKeyError:
+        return await interaction.followup.send(
+            "⚠️ Ya estás en la cola de PvP. Por favor espera a ser emparejado.",
+            ephemeral=True
+        )
 
-    # Contamos docs para verificar
-    total = pvp_queue.count_documents({})
-    print(f"[PVP DEBUG] Total docs in queue: {total}")
+    print(f"[PVP] {uid} añadido a la cola")
 
 
 # --- Battle Simulation ---
