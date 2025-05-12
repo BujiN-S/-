@@ -193,6 +193,7 @@ def run_web():
 TOKEN = os.environ["DISCORD_TOKEN"]
 APP_ID = int(os.environ["DISCORD_APP_ID"])
 port = int(os.environ.get("PORT", 8080))
+MONGODB_URI = os.environ["MONGODB_URI"]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -1569,7 +1570,7 @@ def run_bot():
 
 
 
-        
+
     except Exception as e:
         print(f"[ERROR BOT] {e}")
 
