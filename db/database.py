@@ -1,6 +1,8 @@
 import pymongo
+import os
 
-MONGO_URI = "mongodb+srv://TCG:ixR4AINjmD8HlCQa@cluster0.mriaxlf.mongodb.net/"
+MONGO_URI = os.environ["MONGODB_URI"]
+
 
 def db_connect():
     try:

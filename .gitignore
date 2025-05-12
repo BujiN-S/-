@@ -1,0 +1,32 @@
+# Entornos virtuales
+venv/
+.env
+.venv/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuración de IDEs
+.vscode/
+.idea/
+
+# Archivos de sistema
+*.log
+.DS_Store
+
+# Dependencias
+pip-wheel-metadata/
+*.egg-info/
+
+# Replit / Glitch
+replit.nix
+.replit
+.glitch-assets/
+
+# Archivos de despliegue
+render.yaml
+
+# Otros
+node_modules/
