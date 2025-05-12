@@ -31,8 +31,8 @@ def register_user(users, discord_id, user_name):
     users.insert_one({
         "discordID": str(discord_id),
         "userName": str(user_name),
-        "monedas": 0,
-        "clan": "nonr",
+        "coins": 0,
+        "clan": "none",
     })
 
 def update_user(users, discord_id, field, value):
