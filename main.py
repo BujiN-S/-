@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 import discord
 import threading
 import asyncio
@@ -175,6 +176,8 @@ def choose_rank_threshold(probs: dict[str, float]) -> str:
     # por si acaso, devolvemos el último
     return list(probs.keys())[-1]
 
+load_dotenv()
+
 # === Configuración Flask ===
 app = Flask(__name__)
 
@@ -182,9 +185,14 @@ app = Flask(__name__)
 def index():
     return "✅ Bot activo desde Render."
 
+def run_web():
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
 # === Configuración bot Discord ===
-TOKEN = "MTM1MjQ5NTYxMjgxMzI1MDY0MA.G3LmNo.Y1xgmu5UznG3yitpLk8MOmRsHEpcLCliAkGN0k"
-APP_ID = 1352495612813250640
+TOKEN = os.environ["DISCORD_TOKEN"]
+APP_ID = int(os.environ["DISCORD_APP_ID"])
+port = int(os.environ.get("PORT", 8080))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -1552,10 +1560,32 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
     await msg.edit(content=title + result)
 
 def run_bot():
-    asyncio.run(bot.start(TOKEN))
+    
+    
+    
+    
+    try:
+        asyncio.run(bot.start(TOKEN))
 
-threading.Thread(target=run_bot).start()
 
-# === Ejecutar app Flask ===
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 8080)))
+
+        
+    except Exception as e:
+        print(f"[ERROR BOT] {e}")
+
+if __name__ == "__main__":
+
+
+
+
+    threading.Thread(target=run_web, daemon=True).start()
+
+
+
+
+    threading.Thread(target=run_bot, daemon=True).start()
+
+
+
+
+    threading.Event().wait()
