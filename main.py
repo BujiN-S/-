@@ -207,6 +207,12 @@ async def on_ready():
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
 
+
+
+
+    if not hasattr(bot, "pvp_task"):
+        bot.pvp_task = asyncio.create_task(pvp_matchmaker()) 
+
 @bot.tree.command(name="start", description="Start your adventure!")
 async def start(interaction: discord.Interaction):
     user_id = str(interaction.user.id)
@@ -1489,6 +1495,7 @@ async def pvp(interaction: discord.Interaction):
         "user_id": uid,
         "channel_id": msg.channel.id,
         "message_id": msg.id,
+        "timestamp": datetime.utcnow(),
         "createdAt": datetime.utcnow()
     }
     print(f"[DEBUG] Intentando insertar en pvp_queue: {doc}")
