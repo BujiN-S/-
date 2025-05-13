@@ -1501,14 +1501,10 @@ async def pvp(interaction: discord.Interaction):
     print(f"[DEBUG] Intentando insertar en pvp_queue: {doc}")
 
     try:
-        result = pvp_queue.insert_one(doc)
-        print(f"[DEBUG] Insertó correctamente, inserted_id={result.inserted_id}")
-    except Exception as e:
-        # Cualquier excepción aquí
-        print(f"[ERROR] Falló insert_one: {type(e).__name__}: {e}")
-        # Y avisamos al usuario, opcionalmente
-        return await interaction.followup.send(
-            "❌ Ocurrió un error al apuntarte a la cola de PvP. Revisa logs.",
+        await pvp_queue.insert_one(doc)
+    except DuplicateKeyError:
+        return await interaction.response.send_message(
+            "⚠️ Ya estás en la cola de PvP. Por favor espera a ser emparejado.",
             ephemeral=True
         )
 
