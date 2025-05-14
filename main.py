@@ -207,10 +207,8 @@ async def on_ready():
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
     bot.add_view(CatalogView([]))
 
-
-
-
     if not hasattr(bot, "pvp_task"):
+        print("[DEBUG] Lanzando matchmaker PvP...")
         bot.pvp_task = asyncio.create_task(pvp_matchmaker()) 
 
 @bot.tree.command(name="start", description="Start your adventure!")
@@ -1414,6 +1412,7 @@ def simulate_battle(e1, e2):
 # --- PvP Matching ---
 async def pvp_matchmaker():
     await bot.wait_until_ready()
+    print("[DEBUG] Matchmaker iniciado")
     while True:
         try:
             docs = list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
@@ -1562,33 +1561,8 @@ async def duel(interaction: discord.Interaction, opponent: discord.User):
         result = f"🏆 **{champ}** wins the duel!"
     await msg.edit(content=title + result)
 
-def run_bot():
-    
-    
-    
-    
-    try:
-        asyncio.run(bot.start(TOKEN))
-
-
-
-
-    except Exception as e:
-        print(f"[ERROR BOT] {e}")
-
 if __name__ == "__main__":
-
-
-
-
+    # Keep‑alive HTTP server
     threading.Thread(target=run_web, daemon=True).start()
-
-
-
-
-    threading.Thread(target=run_bot, daemon=True).start()
-
-
-
-
-    threading.Event().wait()
+    # Start the Discord bot (this will trigger on_ready)
+    bot.run(TOKEN)
