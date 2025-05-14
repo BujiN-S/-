@@ -205,7 +205,6 @@ async def on_ready():
     print(f"✅ Bot conectado como {bot.user}")
     synced = await bot.tree.sync()
     print(f"🔄 Comandos sincronizados: {[cmd.name for cmd in synced]}")
-    bot.add_view(CatalogView([]))
 
     if not hasattr(bot, "pvp_task"):
         print("[DEBUG] Lanzando matchmaker PvP...")
