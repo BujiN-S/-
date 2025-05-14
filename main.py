@@ -1483,29 +1483,28 @@ async def pvp(interaction: discord.Interaction):
     if err:
         return await interaction.response.send_message(f"⚠️ {err}", ephemeral=True)
 
-    await interaction.response.send_message(
-        "🌀 Te has apuntado a la cola de PvP. ¡Esperando oponente...",
-        ephemeral=False
-    )
-    msg = await interaction.original_response()
+    try:
+        await interaction.response.send_message("🌀 Entrando a la cola de PvP...")
+    
+        msg = await interaction.original_response()
 
     # Datos que vamos a insertar
-    doc = {
-        "_id": uid,
-        "user_id": uid,
-        "channel_id": msg.channel.id,
-        "message_id": msg.id,
-        "timestamp": datetime.utcnow(),
-        "createdAt": datetime.utcnow()
-    }
-    print(f"[DEBUG] Intentando insertar en pvp_queue: {doc}")
+        doc = {
+            "_id": uid,
+            "user_id": uid,
+            "channel_id": msg.channel.id,
+            "message_id": msg.id,
+            "timestamp": datetime.utcnow(),
+            "createdAt": datetime.utcnow()
+        }
+        print(f"[DEBUG] Intentando insertar en pvp_queue: {doc}")
 
-    try:
-        await pvp_queue.insert_one(doc)
+    
+        pvp_queue.insert_one(doc)
+        
     except DuplicateKeyError:
-        return await interaction.response.send_message(
-            "⚠️ Ya estás en la cola de PvP. Por favor espera a ser emparejado.",
-            ephemeral=True
+        return await interaction.edit_original_response(
+            content="⚠️ Ya estás en la cola de PvP. Por favor espera a ser emparejado."
         )
 
 
