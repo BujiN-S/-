@@ -1414,13 +1414,15 @@ async def pvp_matchmaker():
     print("[DEBUG] Matchmaker iniciado")
     while True:
         try:
-            docs = list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
+            docs = await asyncio.to_thread(
+                lambda: list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
+            )
             print(f"[MATCHMAKER] Queue length: {len(docs)}")
 
             if len(docs) == 2:
                 # Saca los usuarios de la cola
                 ids = [d["_id"] for d in docs]
-                pvp_queue.delete_many({"_id": {"$in": ids}})
+                await asyncio.to_thread(lambda: pvp_queue.delete_many({"_id": {"$in": ids}}))
                 print(f"[MATCHMAKER] Removed IDs from queue: {ids}")
 
                 p1, p2 = docs
