@@ -1432,8 +1432,8 @@ async def pvp_matchmaker():
                 # Obtiene usuarios y canales
                 user1 = await bot.fetch_user(int(uid1))
                 user2 = await bot.fetch_user(int(uid2))
-                chan1 = bot.get_channel(p1["channel_id"])
-                chan2 = bot.get_channel(p2["channel_id"])
+                chan1 = bot.get_channel(p1["channel_id"]) or await bot.fetch_channel(p1["channel_id"])
+                chan2 = bot.get_channel(p2["channel_id"]) or await bot.fetch_channel(p2["channel_id"])
                 msg1 = await chan1.fetch_message(p1["message_id"])
                 msg2 = await chan2.fetch_message(p2["message_id"])
 
