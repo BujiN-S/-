@@ -1005,7 +1005,7 @@ async def team(interaction: Interaction):
     uid = str(interaction.user.id)
     fdoc = user_formations.find_one({"discordID": uid})
     if not fdoc or "formation" not in fdoc:
-        return await interaction.followup.send(
+        return await interaction.response.send_message(
             "❌ Start by selecting your formation using '/formacion'.", ephemeral=True
         )
     slots = fdoc["formation"]
@@ -1033,7 +1033,7 @@ async def team(interaction: Interaction):
         description="\n".join(lines),
         color=Color.blue()
     )
-    await interaction.followup.send(embed=embed, ephemeral=True)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="swap", description="Swap the positions of two cards in your team.")
 @app_commands.describe(
