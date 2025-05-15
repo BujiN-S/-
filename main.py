@@ -1002,6 +1002,9 @@ async def assign(interaction: Interaction, slot: int, id: str):
 
 @bot.tree.command(name="team", description="Show your formation and assigned cards.")
 async def team(interaction: Interaction):
+    
+    await interaction.response.defer(ephemeral=True)
+    
     uid = str(interaction.user.id)
     fdoc = user_formations.find_one({"discordID": uid})
     if not fdoc or "formation" not in fdoc:
