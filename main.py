@@ -1411,73 +1411,93 @@ def simulate_battle(e1, e2):
         return "Draw", log
 
 
-# --- PvP Matching ---
 async def pvp_matchmaker():
     await bot.wait_until_ready()
     print("[DEBUG] Matchmaker iniciado")
     while True:
         try:
-            docs = await asyncio.to_thread(
-                lambda: list(pvp_queue.find().sort("createdAt", ASCENDING).limit(2))
+            # 1) Trae toda la cola (en hilo para no bloquear)
+            all_docs = await asyncio.to_thread(
+                lambda: list(pvp_queue.find().sort("createdAt", ASCENDING))
             )
-            print(f"[MATCHMAKER] Queue length: {len(docs)}")
+            print(f"[MATCHMAKER] Total en cola: {len(all_docs)}")
 
-            if len(docs) == 2:
-                # Saca los usuarios de la cola
-                ids = [d["_id"] for d in docs]
-                await asyncio.to_thread(lambda: pvp_queue.delete_many({"_id": {"$in": ids}}))
-                print(f"[MATCHMAKER] Removed IDs from queue: {ids}")
+            # 2) Forma pares de a dos
+            pairs = []
+            while len(all_docs) >= 2:
+                p1, p2 = all_docs[:2]
+                all_docs = all_docs[2:]
+                pairs.append((p1, p2))
 
-                p1, p2 = docs
-                uid1, uid2 = p1["user_id"], p2["user_id"]
-                print(f"[MATCHMAKER] Matched {uid1} vs {uid2}")
-
-                # Obtiene usuarios y canales
-                user1 = await bot.fetch_user(int(uid1))
-                user2 = await bot.fetch_user(int(uid2))
-                chan1 = bot.get_channel(p1["channel_id"]) or await bot.fetch_channel(p1["channel_id"])
-                chan2 = bot.get_channel(p2["channel_id"]) or await bot.fetch_channel(p2["channel_id"])
-                msg1 = await chan1.fetch_message(p1["message_id"])
-                msg2 = await chan2.fetch_message(p2["message_id"])
-
-                header = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
-                await msg1.edit(content=header + "🕐 The duel begins!")
-                await msg2.edit(content=header + "🕐 The duel begins!")
-
-                # Obtiene equipos
-                team1, err1 = get_user_team(uid1)
-                team2, err2 = get_user_team(uid2)
-                if err1 or err2:
-                    error_msg = err1 or err2
-                    print(f"[MATCHMAKER] Error getting teams: {error_msg}")
-                    await msg1.edit(content=header + error_msg)
-                    await msg2.edit(content=header + error_msg)
-                    continue
-                print(f"[MATCHMAKER] Team1: {team1}")
-                print(f"[MATCHMAKER] Team2: {team2}")
-
-                # Simula batalla
-                winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
-                print(f"[MATCHMAKER] Winner: {winner}")
-
-                for entry in log:
-                    await asyncio.sleep(1)
-                    await msg1.edit(content=header + entry)
-                    await msg2.edit(content=header + entry)
-
-                await asyncio.sleep(1)
-                result = (
-                    "🤝 The duel ended in a draw!"
-                    if winner == "Draw" else
-                    f"🏆 **{user1.display_name if winner == 'Team 1' else user2.display_name}** wins!"
+            # 3) Borra todos los emparejados de la BD
+            if pairs:
+                ids_to_remove = [d["_id"] for pair in pairs for d in pair]
+                await asyncio.to_thread(
+                    lambda: pvp_queue.delete_many({"_id": {"$in": ids_to_remove}})
                 )
-                await msg1.edit(content=header + result)
-                await msg2.edit(content=header + result)
+                print(f"[MATCHMAKER] Removed IDs: {ids_to_remove}")
+
+            # 4) Lanza cada combate en su propia tarea
+            for p1, p2 in pairs:
+                asyncio.create_task(handle_pvp_match(p1, p2))
 
         except Exception as e:
             print(f"[PVP DEBUG][ERROR] {e}")
             traceback.print_exc()
-            await asyncio.sleep(5)
+
+        # 5) Espera breve antes de revisar de nuevo
+        await asyncio.sleep(5)
+
+async def handle_pvp_match(p1, p2):
+    """Procesa un solo combate sin bloquear el loop principal."""
+    try:
+        uid1, uid2 = p1["user_id"], p2["user_id"]
+
+        # Obtiene canales (cache o fetch API)
+        chan1 = bot.get_channel(p1["channel_id"]) or await bot.fetch_channel(p1["channel_id"])
+        chan2 = bot.get_channel(p2["channel_id"]) or await bot.fetch_channel(p2["channel_id"])
+        msg1 = await chan1.fetch_message(p1["message_id"])
+        msg2 = await chan2.fetch_message(p2["message_id"])
+
+        # Cabecera
+        user1 = await bot.fetch_user(int(uid1))
+        user2 = await bot.fetch_user(int(uid2))
+        header = f"⚔️ {user1.display_name} vs {user2.display_name}\n\n"
+        await msg1.edit(content=header + "🕐 The duel begins!")
+        await msg2.edit(content=header + "🕐 The duel begins!")
+
+        # Ensambla equipos
+        team1, err1 = get_user_team(uid1)
+        team2, err2 = get_user_team(uid2)
+        if err1 or err2:
+            err = err1 or err2
+            await msg1.edit(content=header + err)
+            await msg2.edit(content=header + err)
+            return
+
+        # Simula batalla en hilo
+        winner, log = await asyncio.to_thread(simulate_battle, team1, team2)
+        print(f"[MATCHMAKER] Winner: {winner}")
+
+        # Envía log de la batalla
+        for entry in log:
+            await asyncio.sleep(1)
+            await msg1.edit(content=header + entry)
+            await msg2.edit(content=header + entry)
+
+        # Resultado final
+        await asyncio.sleep(1)
+        result = (
+            "🤝 The duel ended in a draw!"
+            if winner == "Draw" else
+            f"🏆 **{user1.display_name if winner == 'Team 1' else user2.display_name}** wins!"
+        )
+        await msg1.edit(content=header + result)
+        await msg2.edit(content=header + result)
+
+    except Exception as e:
+        print(f"[PVP DEBUG][ERROR in handle_pvp_match] {e}")
+        traceback.print_exc()
 
 @bot.tree.command(name="pvp", description="Queue PvP against another player")
 async def pvp(interaction: discord.Interaction):
